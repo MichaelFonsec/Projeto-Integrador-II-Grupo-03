@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estrutura - CONSTRUTORA CBR</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+            color: #000;
+            background: #fff;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Topo */
+        header {
+            height: 50px;
+            border-bottom: 1px solid #000;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        /* Corpo */
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Menu Lateral */
+        aside {
+            width: 180px;
+            border-right: 1px solid #000;
+        }
+
+        aside div {
+            padding: 14px;
+            border-bottom: 1px solid #000;
+            cursor: pointer;
+        }
+
+        aside div.ativo {
+            font-weight: bold;
+            text-decoration: underline;
+        }
+
+        /* Área Principal e Abas */
+        main {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .aba {
+            display: none;
+            flex-direction: column;
+            gap: 16px;
+            height: 100%;
+        }
+
+        .aba.ativa {
+            display: flex;
+        }
+
+        /* Blocos Estruturais */
+        .bloco-topo {
+            border: 1px solid #000;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .botoes {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        button,
+        select,
+        input {
+            border: 1px solid #000;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        .resumo {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .caixa {
+            border: 1px solid #000;
+            height: 70px;
+            padding: 10px;
+        }
+
+        .area-dividida {
+            display: grid;
+            grid-template-columns: 3fr 1fr;
+            gap: 16px;
+            flex: 1;
+        }
+
+        .grade-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            flex: 1;
+        }
+
+        .painel {
+            border: 1px solid #000;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .grafico-box {
+            border: 1px solid #000;
+            flex: 1;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            border: 1px solid #000;
+            padding: 10px;
+            text-align: left;
+        }
+
+        .item-lista {
+            border-bottom: 1px solid #000;
+            padding: 12px 0;
+        }
+
+        .nav-mobile {
+            display: none;
+        }
+
+        @media (max-width: 640px) {
+            aside {
+                display: none;
+            }
+
+            .resumo {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .area-dividida,
+            .grade-2 {
+                grid-template-columns: 1fr;
+            }
+
+            .nav-mobile {
+                display: flex;
+                border-top: 1px solid #000;
+                height: 50px;
+                justify-content: space-around;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div>CONSTRUTORA CBR</div>
+        <select>
+            <option>Selecionar Obra</option>
+            <option>Nova Obra</option>
+        </select>
+        <div>Usuário</div>
+    </header>
+
+    <div class="container">
+
+        <aside>
+            <div id="menu-obra" class="ativo" onclick="trocarAba('obra')">Obra</div>
+            <div id="menu-estoque" onclick="trocarAba('estoque')">Estoque Geral</div>
+            <div id="menu-movimentacoes" onclick="trocarAba('movimentacoes')">Movimentações</div>
+            <div id="menu-relatorios" onclick="trocarAba('relatorios')">Relatórios</div>
+        </aside>
+
+        <main>
+
+            <!-- ABA 1: OBRA -->
+            <div id="aba-obra" class="aba ativa">
+                <div class="bloco-topo">
+                    <div>Nome da Obra / Status</div>
+                    <div class="botoes">
+                        <button>Alocar do Geral</button>
+                        <button>Entrada Direta</button>
+                        <button>Transferir</button>
+                        <button>Encerrar Obra</button>
+                    </div>
+                </div>
+
+                <div class="resumo">
+                    <div class="caixa">Orçamento</div>
+                    <div class="caixa">Gasto</div>
+                    <div class="caixa">Total de Itens</div>
+                    <div class="caixa">Alertas</div>
+                </div>
+
+                <div class="area-dividida">
+                    <div class="painel">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Estoque da Obra</span>
+                            <input type="text" placeholder="Buscar">
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Material</th>
+                                    <th>Alocado</th>
+                                    <th>Usado</th>
+                                    <th>Saldo</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>---</td>
+                                    <td>---</td>
+                                    <td>---</td>
+                                    <td>---</td>
+                                    <td>
+                                        <button>Baixar</button>
+                                        <button>Transferir</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>---</td>
+                                    <td>---</td>
+                                    <td>---</td>
+                                    <td>---</td>
+                                    <td>
+                                        <button>Baixar</button>
+                                        <button>Transferir</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="painel">
+                        <div>Histórico</div>
+                        <div class="item-lista">Registro 1</div>
+                        <div class="item-lista">Registro 2</div>
+                        <div class="item-lista">Registro 3</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ABA 2: ESTOQUE GERAL -->
+            <div id="aba-estoque" class="aba">
+                <div class="bloco-topo">
+                    <div>Estoque Geral</div>
+                    <div class="botoes">
+                        <button>Cadastrar Material</button>
+                        <button>Entrada de Estoque</button>
+                        <button>Alocar para Obra</button>
+                    </div>
+                </div>
+
+                <div class="resumo">
+                    <div class="caixa">Total de Materiais</div>
+                    <div class="caixa">Valor em Estoque</div>
+                    <div class="caixa">Estoque Mínimo</div>
+                    <div class="caixa">Categorias</div>
+                </div>
+
+                <div class="painel">
+                    <div style="display: flex; justify-content: space-between; gap: 8px;">
+                        <input type="text" placeholder="Buscar material">
+                        <select>
+                            <option>Categoria</option>
+                        </select>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Material</th>
+                                <th>Categoria</th>
+                                <th>Unidade</th>
+                                <th>Saldo Geral</th>
+                                <th>Mínimo</th>
+                                <th>Custo Unitário</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>
+                                    <button>Editar</button>
+                                    <button>Alocar</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>
+                                    <button>Editar</button>
+                                    <button>Alocar</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ABA 3: MOVIMENTAÇÕES -->
+            <div id="aba-movimentacoes" class="aba">
+                <div class="bloco-topo">
+                    <div>Movimentações</div>
+                    <div class="botoes">
+                        <button>Nova Transferência</button>
+                    </div>
+                </div>
+
+                <div class="painel">
+                    <div class="botoes">
+                        <select>
+                            <option>Tipo</option>
+                        </select>
+                        <select>
+                            <option>Origem</option>
+                        </select>
+                        <select>
+                            <option>Destino</option>
+                        </select>
+                        <input type="date">
+                        <input type="text" placeholder="Buscar">
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Tipo</th>
+                                <th>Material</th>
+                                <th>Quantidade</th>
+                                <th>Origem</th>
+                                <th>Destino</th>
+                                <th>Responsável</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                            </tr>
+                            <tr>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ABA 4: RELATÓRIOS -->
+            <div id="aba-relatorios" class="aba">
+                <div class="bloco-topo">
+                    <div>Relatórios</div>
+                    <div class="botoes">
+                        <select>
+                            <option>Filtrar Obra</option>
+                        </select>
+                        <button>Exportar PDF</button>
+                        <button>Exportar Excel</button>
+                    </div>
+                </div>
+
+                <div class="grade-2">
+                    <div class="painel">
+                        <div>Gráfico Entradas vs Saídas</div>
+                        <div class="grafico-box">Área do Gráfico 1</div>
+                    </div>
+                    <div class="painel">
+                        <div>Gráfico Orçado vs Gasto</div>
+                        <div class="grafico-box">Área do Gráfico 2</div>
+                    </div>
+                </div>
+
+                <div class="painel">
+                    <div>Fechamento de Obras</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Obra</th>
+                                <th>Data Fechamento</th>
+                                <th>Total Gasto</th>
+                                <th>Saldo Retornado</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td><button>Ver Relatório</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <div class="nav-mobile">
+        <button onclick="trocarAba('obra')">Obra</button>
+        <button onclick="trocarAba('estoque')">Estoque</button>
+        <button onclick="trocarAba('movimentacoes')">Movim.</button>
+        <button onclick="trocarAba('relatorios')">Relat.</button>
+    </div>
+
+    <script>
+        function trocarAba(nome) {
+            document.querySelectorAll('.aba').forEach(el => el.classList.remove('ativa'));
+            document.querySelectorAll('aside div').forEach(el => el.classList.remove('ativo'));
+
+            document.getElementById('aba-' + nome).classList.add('ativa');
+            document.getElementById('menu-' + nome).classList.add('ativo');
+        }
+    </script>
+
+</body>
+
+</html>

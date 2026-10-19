@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estoque Geral - CONSTRUTORA CBR</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header>
+        <div>CONSTRUTORA CBR</div>
+        <select>
+            <option>Selecionar Obra</option>
+            <option>Nova Obra</option>
+        </select>
+        <div>Usuário</div>
+    </header>
+
+    <div class="container">
+
+        <aside>
+            <div id="menu-obra" onclick="location.href='aba-obra.html'">Obra</div>
+            <div id="menu-estoque" class="ativo" onclick="location.href='aba-estoque.html'">Estoque Geral</div>
+            <div id="menu-movimentacoes" onclick="location.href='aba-movimentacoes.html'">Movimentações</div>
+            <div id="menu-relatorios" onclick="location.href='aba-relatorios.html'">Relatórios</div>
+        </aside>
+
+        <main>
+            <!-- ABA 2: ESTOQUE GERAL -->
+            <div id="aba-estoque" class="aba ativa">
+                <div class="bloco-topo">
+                    <div>Estoque Geral</div>
+                    <div class="botoes">
+                        <button>Cadastrar Material</button>
+                        <button>Entrada de Estoque</button>
+                        <button>Alocar para Obra</button>
+                    </div>
+                </div>
+
+                <div class="resumo">
+                    <div class="caixa">Total de Materiais</div>
+                    <div class="caixa">Valor em Estoque</div>
+                    <div class="caixa">Estoque Mínimo</div>
+                    <div class="caixa">Categorias</div>
+                </div>
+
+                <div class="painel">
+                    <div style="display: flex; justify-content: space-between; gap: 8px;">
+                        <input type="text" placeholder="Buscar material">
+                        <select>
+                            <option>Categoria</option>
+                        </select>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Material</th>
+                                <th>Categoria</th>
+                                <th>Unidade</th>
+                                <th>Saldo Geral</th>
+                                <th>Mínimo</th>
+                                <th>Custo Unitário</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>
+                                    <button>Editar</button>
+                                    <button>Alocar</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>---</td>
+                                <td>
+                                    <button>Editar</button>
+                                    <button>Alocar</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="nav-mobile">
+        <button onclick="location.href='aba-obra.html'">Obra</button>
+        <button onclick="location.href='aba-estoque.html'">Estoque</button>
+        <button onclick="location.href='aba-movimentacoes.html'">Movim.</button>
+        <button onclick="location.href='aba-relatorios.html'">Relat.</button>
+    </div>
+
+</body>
+
+</html>

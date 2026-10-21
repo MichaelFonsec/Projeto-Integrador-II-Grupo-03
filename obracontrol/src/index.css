@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --azul-fundo: #0B0E26;
+  --azul-painel: #111535;
+  --azul-card: #1B1F3B;
+  --azul-input: #1F2442;
+  --amarelo-destaque: #FFCA18;
+  --verde-sucesso: #1D8A52;
+  --cinza-texto: #8F9BB3;
+}
+
+body {
+  background-color: var(--azul-fundo);
+  color: #FFFFFF;
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+}
+
+/* Scrollbars customizadas para o tema escuro */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--azul-input);
+  border-radius: 4px;
+}
+
+@layer utilities {
+  .bg-azul-fundo { background-color: var(--azul-fundo); }
+  .bg-azul-painel { background-color: var(--azul-painel); }
+  .bg-azul-card { background-color: var(--azul-card); }
+  .bg-azul-input { background-color: var(--azul-input); }
+  .text-cinza-texto { color: var(--cinza-texto); }
+  .text-amarelo-destaque { color: var(--amarelo-destaque); }
+}

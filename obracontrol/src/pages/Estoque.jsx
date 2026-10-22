@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Package, PlusCircle, Trash2, Box, Search, DollarSign, Edit, Save, X } from 'lucide-react';
 import { db } from '../firebaseConfig'; 
-import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, deleteDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Estoque() {
@@ -26,24 +26,22 @@ export default function Estoque() {
     valorUnitario: '' 
   });
 
+  // Escuta em tempo real (onSnapshot) para atualizar o estoque automaticamente
   useEffect(() => {
-    fetchEstoque();
-  }, []);
-
-  const fetchEstoque = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'estoque'));
+    const unsubscribe = onSnapshot(collection(db, 'estoque'), (querySnapshot) => {
       const estoqueArray = [];
       querySnapshot.forEach((docSnap) => {
         estoqueArray.push({ id: docSnap.id, ...docSnap.data() });
       });
       setMateriais(estoqueArray);
-    } catch (error) {
-      console.error("Erro ao buscar estoque:", error);
-    } finally {
       setLoading(false);
-    }
-  };
+    }, (error) => {
+      console.error("Erro ao carregar o estoque em tempo real:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleInputChange = (e) => {
     setNovoMaterial({ ...novoMaterial, [e.target.name]: e.target.value });
@@ -67,15 +65,13 @@ export default function Estoque() {
         createdAt: serverTimestamp()
       };
 
-      const docRef = await addDoc(collection(db, 'estoque'), materialParaSalvar);
-      setMateriais(prev => [...prev, { id: docRef.id, ...materialParaSalvar }]);
+      await addDoc(collection(db, 'estoque'), materialParaSalvar);
       
-      // LOG DE ENTRADA
       await addDoc(collection(db, 'movimentacoes'), {
         tipo: 'ENTRADA',
         modulo: 'Estoque Geral',
         descricao: `Cadastrou ${materialParaSalvar.quantidade} un. de ${materialParaSalvar.nome}`,
-        usuario: userData?.usuario || currentUser?.email || 'Usuário Desconhecido',
+        usuario: userData?.usuario || currentUser?.email || 'Utilizador',
         data: serverTimestamp()
       });
 
@@ -88,18 +84,15 @@ export default function Estoque() {
   };
 
   const handleDeleteMaterial = async (id, nome) => {
-    const confirmar = window.confirm(`Tem certeza que deseja excluir "${nome}" do estoque?`);
-    if (confirmar) {
+    if (window.confirm(`Tem a certeza que deseja excluir "${nome}" do estoque?`)) {
       try {
         await deleteDoc(doc(db, 'estoque', id));
-        setMateriais(prev => prev.filter(item => item.id !== id));
 
-        // LOG DE EXCLUSÃO
         await addDoc(collection(db, 'movimentacoes'), {
           tipo: 'EXCLUSAO',
           modulo: 'Estoque Geral',
           descricao: `Excluiu o material ${nome} do estoque`,
-          usuario: userData?.usuario || currentUser?.email || 'Usuário Desconhecido',
+          usuario: userData?.usuario || currentUser?.email || 'Utilizador',
           data: serverTimestamp()
         });
       } catch (error) {
@@ -140,15 +133,13 @@ export default function Estoque() {
       };
 
       await updateDoc(docRef, dadosAtualizados);
-      setMateriais(prev => prev.map(item => item.id === id ? { ...item, ...dadosAtualizados } : item));
       setEditingId(null);
 
-      // LOG DE EDIÇÃO
       await addDoc(collection(db, 'movimentacoes'), {
         tipo: 'EDICAO',
         modulo: 'Estoque Geral',
         descricao: `Editou as informações do material: ${dadosAtualizados.nome}`,
-        usuario: userData?.usuario || currentUser?.email || 'Usuário Desconhecido',
+        usuario: userData?.usuario || currentUser?.email || 'Utilizador',
         data: serverTimestamp()
       });
     } catch (error) {
@@ -161,7 +152,7 @@ export default function Estoque() {
     (item.fornecedor || '').toLowerCase().includes(termoBusca.toLowerCase())
   );
   
-  // Cálculos reativos atualizados a cada renderização
+  // Cálculos dinâmicos baseados no estado reativo do Firestore
   const totalItens = materiais.reduce((acc, item) => acc + (Number(item.quantidade) || 0), 0);
 
   const valorTotalEstoque = materiais.reduce((acc, item) => {
@@ -174,7 +165,7 @@ export default function Estoque() {
   return (
     <div className="flex-1 bg-[#0B0E26] min-h-screen p-8 text-white overflow-y-auto transition-colors duration-200">
       
-      {/* Cabeçalho */}
+      {/* Cabeçalho e Métricas */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Estoque Geral</h1>
@@ -182,7 +173,7 @@ export default function Estoque() {
         </div>
         
         <div className="flex flex-wrap gap-4">
-          <div className="bg-[#111535] border border-[#2A2F55] rounded-xl px-6 py-3 flex items-center gap-4 shadow-lg transition-colors">
+          <div className="bg-[#111535] border border-[#2A2F55] rounded-xl px-6 py-3 flex items-center gap-4 shadow-lg">
             <div className="bg-[#FFCA18]/10 p-2 rounded-lg text-[#FFCA18]">
               <Box size={24} />
             </div>
@@ -192,7 +183,7 @@ export default function Estoque() {
             </div>
           </div>
           
-          <div className="bg-[#111535] border border-[#2A2F55] rounded-xl px-6 py-3 flex items-center gap-4 shadow-lg transition-colors">
+          <div className="bg-[#111535] border border-[#2A2F55] rounded-xl px-6 py-3 flex items-center gap-4 shadow-lg">
             <div className="bg-green-500/10 p-2 rounded-lg text-green-400">
               <DollarSign size={24} />
             </div>
@@ -207,7 +198,7 @@ export default function Estoque() {
       </div>
 
       {/* Formulário de Cadastro */}
-      <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 shadow-xl mb-8 transition-colors">
+      <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 shadow-xl mb-8">
         <h2 className="text-lg font-bold border-b border-[#2A2F55] pb-3 mb-5 text-[#FFCA18] flex items-center gap-2">
           <PlusCircle size={20} /> Cadastrar Novo Material no Estoque
         </h2>
@@ -221,7 +212,7 @@ export default function Estoque() {
               value={novoMaterial.nome} 
               onChange={handleInputChange} 
               required 
-              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none transition-colors" 
+              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none" 
             />
           </div>
           
@@ -232,7 +223,7 @@ export default function Estoque() {
               name="fornecedor" 
               value={novoMaterial.fornecedor} 
               onChange={handleInputChange} 
-              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none transition-colors" 
+              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none" 
             />
           </div>
           
@@ -245,7 +236,7 @@ export default function Estoque() {
               onChange={handleInputChange} 
               required 
               min="1" 
-              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none transition-colors" 
+              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none" 
             />
           </div>
           
@@ -259,22 +250,22 @@ export default function Estoque() {
               onChange={handleInputChange} 
               required 
               min="0" 
-              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none transition-colors" 
+              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none" 
             />
           </div>
           
           <button 
             type="submit" 
             disabled={isSubmitting} 
-            className="w-full lg:w-auto px-8 py-3 bg-[#FFCA18] hover:bg-[#e6b616] text-[#0B0E26] rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 h-[50px] transition-colors"
+            className="w-full lg:w-auto px-8 py-3 bg-[#FFCA18] hover:bg-[#e6b616] text-[#0B0E26] rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 h-[50px]"
           >
-            {isSubmitting ? 'Salvando...' : 'Adicionar'}
+            {isSubmitting ? 'A salvar...' : 'Adicionar'}
           </button>
         </form>
       </div>
 
-      {/* Tabela do Estoque */}
-      <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl shadow-xl overflow-hidden transition-colors">
+      {/* Tabela de Materiais */}
+      <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl shadow-xl overflow-hidden">
         <div className="p-6 border-b border-[#2A2F55] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-3">
             <Package className="text-[#FFCA18]" size={24} />
@@ -287,13 +278,13 @@ export default function Estoque() {
               placeholder="Buscar material..." 
               value={termoBusca} 
               onChange={(e) => setTermoBusca(e.target.value)} 
-              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:border-[#FFCA18] outline-none transition-colors" 
+              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:border-[#FFCA18] outline-none" 
             />
           </div>
         </div>
         
         {loading ? (
-          <div className="p-10 text-center text-[#8F9BB3]">Carregando estoque...</div>
+          <div className="p-10 text-center text-[#8F9BB3]">A carregar estoque...</div>
         ) : materiaisFiltrados.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm min-w-[800px]">
@@ -317,25 +308,15 @@ export default function Estoque() {
                     <tr key={item.id} className="hover:bg-[#1B1F3B] transition-colors">
                       {editingId === item.id ? (
                         <>
-                          <td className="p-2">
-                            <input type="text" name="nome" value={editFormData.nome} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white focus:border-[#FFCA18] outline-none text-sm transition-colors" />
-                          </td>
-                          <td className="p-2">
-                            <input type="text" name="fornecedor" value={editFormData.fornecedor} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white focus:border-[#FFCA18] outline-none text-sm transition-colors" />
-                          </td>
-                          <td className="p-2">
-                            <input type="number" name="quantidade" min="0" value={editFormData.quantidade} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white text-center focus:border-[#FFCA18] outline-none text-sm transition-colors" />
-                          </td>
-                          <td className="p-2">
-                            <input type="number" name="valorUnitario" step="0.01" min="0" value={editFormData.valorUnitario} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white focus:border-[#FFCA18] outline-none text-sm transition-colors" />
-                          </td>
-                          <td className="px-6 py-4 font-bold text-green-400">
-                            R$ {( (Number(editFormData.quantidade) || 0) * (Number(editFormData.valorUnitario) || 0) ).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                          </td>
+                          <td className="p-2"><input type="text" name="nome" value={editFormData.nome} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white text-sm" /></td>
+                          <td className="p-2"><input type="text" name="fornecedor" value={editFormData.fornecedor} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white text-sm" /></td>
+                          <td className="p-2"><input type="number" name="quantidade" min="0" value={editFormData.quantidade} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white text-center text-sm" /></td>
+                          <td className="p-2"><input type="number" name="valorUnitario" step="0.01" min="0" value={editFormData.valorUnitario} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white text-sm" /></td>
+                          <td className="px-6 py-4 font-bold text-green-400">R$ {( (Number(editFormData.quantidade) || 0) * (Number(editFormData.valorUnitario) || 0) ).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
                           <td className="px-6 py-4 text-center">
                             <div className="flex items-center justify-center gap-2">
-                              <button onClick={() => handleSaveEdit(item.id)} className="text-green-400 hover:bg-green-400/10 p-2 rounded-lg transition-colors"><Save size={18} /></button>
-                              <button onClick={handleCancelEdit} className="text-[#8F9BB3] hover:text-white hover:bg-[#2A2F55] p-2 rounded-lg transition-colors"><X size={18} /></button>
+                              <button onClick={() => handleSaveEdit(item.id)} className="text-green-400 hover:bg-green-400/10 p-2 rounded-lg"><Save size={18} /></button>
+                              <button onClick={handleCancelEdit} className="text-[#8F9BB3] hover:text-white p-2 rounded-lg"><X size={18} /></button>
                             </div>
                           </td>
                         </>
@@ -343,15 +324,13 @@ export default function Estoque() {
                         <>
                           <td className="px-6 py-4 font-medium text-white">{item.nome}</td>
                           <td className="px-6 py-4 text-[#8F9BB3]">{item.fornecedor}</td>
-                          <td className="px-6 py-4 text-center font-bold text-white">
-                            <span className="bg-[#1B1F3B] px-3 py-1 rounded-lg border border-[#2A2F55]">{qtdNum}</span>
-                          </td>
+                          <td className="px-6 py-4 text-center font-bold text-white"><span className="bg-[#1B1F3B] px-3 py-1 rounded-lg border border-[#2A2F55]">{qtdNum}</span></td>
                           <td className="px-6 py-4 text-[#8F9BB3]">R$ {vUnitNum.toFixed(2)}</td>
                           <td className="px-6 py-4 font-bold text-green-400">R$ {vTotalNum.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
                           <td className="px-6 py-4 text-center">
                             <div className="flex items-center justify-center gap-2">
-                              <button onClick={() => handleEditClick(item)} className="text-[#FFCA18] hover:bg-[#FFCA18]/10 p-2 rounded-lg transition-colors"><Edit size={18} /></button>
-                              <button onClick={() => handleDeleteMaterial(item.id, item.nome)} className="text-[#4A5578] hover:text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                              <button onClick={() => handleEditClick(item)} className="text-[#FFCA18] hover:bg-[#FFCA18]/10 p-2 rounded-lg"><Edit size={18} /></button>
+                              <button onClick={() => handleDeleteMaterial(item.id, item.nome)} className="text-[#4A5578] hover:text-red-500 hover:bg-red-500/10 p-2 rounded-lg"><Trash2 size={18} /></button>
                             </div>
                           </td>
                         </>
@@ -363,9 +342,7 @@ export default function Estoque() {
             </table>
           </div>
         ) : (
-          <div className="p-10 text-center text-[#8F9BB3]">
-            {termoBusca ? 'Nenhum material encontrado.' : 'Estoque vazio.'}
-          </div>
+          <div className="p-10 text-center text-[#8F9BB3]">{termoBusca ? 'Nenhum material encontrado.' : 'Estoque vazio.'}</div>
         )}
       </div>
     </div>

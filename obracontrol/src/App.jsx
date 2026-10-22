@@ -34,7 +34,7 @@ export default function App() {
               <Route path="empresas" element={<Empresas />} />
               <Route path="categorias" element={<Categorias />} />
               <Route path="nova-obra" element={<NovaObra />} />
-              <Route path="obra" element={<Obra />} />
+              <Route path="obra/:id?" element={<Obra />} />
             </Route>
           </Routes>
         </Router>

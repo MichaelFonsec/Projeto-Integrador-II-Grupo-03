@@ -1,11 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { Download, Plus, ArrowRight, CheckCircle, DollarSign, TrendingDown, Package, AlertTriangle, Search } from 'lucide-react';
+import { Download, Plus, ArrowRight, CheckCircle, Search, ChevronDown } from 'lucide-react';
 
 export default function Dashboard() {
   const [stats, setStats] = useState({ orcamento: '50.000,00', gasto: '12.500,00', totalItens: 0, alertas: 0 });
   const [historico, setHistorico] = useState([]);
+  const [obraSelecionada, setObraSelecionada] = useState('Residencial Alpha');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const obras = ['Residencial Alpha', 'Edifício Horizon', 'Condomínio Solar'];
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     // Simulação de carregamento
@@ -22,9 +37,42 @@ export default function Dashboard() {
   return (
     <div className="animate-fade-in font-sans">
       {/* Bloco Topo */}
-      <div className="bg-[#111535] border border-[#2A2F55] rounded-xl p-4 flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
-        <h1 className="text-lg font-bold text-white uppercase tracking-wider">Nome da Obra / Status</h1>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+        <h1 className="text-xl font-bold text-white uppercase tracking-wider">{obraSelecionada} / Status</h1>
         <div className="flex flex-wrap gap-2">
+          {/* Botão Selecionar Obra com Dropdown Customizado */}
+          <div className="relative" ref={dropdownRef}>
+            <button 
+              type="button"
+              onClick={() => setIsDropdownOpen(prev => !prev)}
+              className="bg-[#1B1F3B] hover:bg-[#2A2F55] border border-[#2A2F55] text-white text-xs font-bold py-2 px-4 rounded transition-colors flex items-center gap-2"
+            >
+              <ChevronDown size={14} className={`transition-transform duration-150 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              <span>{obraSelecionada}</span>
+            </button>
+            {isDropdownOpen && (
+              <div className="absolute left-0 mt-1 min-w-[170px] bg-[#1B1F3B] border border-[#2A2F55] rounded shadow-lg py-1 z-30">
+                {obras.map((obra) => (
+                  <button
+                    key={obra}
+                    type="button"
+                    onClick={() => {
+                      setObraSelecionada(obra);
+                      setIsDropdownOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors ${
+                      obraSelecionada === obra
+                        ? 'bg-[#2A2F55] text-white'
+                        : 'text-[#8F9BB3] hover:text-white hover:bg-[#2A2F55]'
+                    }`}
+                  >
+                    {obra}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button className="bg-[#1B1F3B] hover:bg-[#2A2F55] border border-[#2A2F55] text-white text-xs font-bold py-2 px-4 rounded transition-colors flex items-center gap-2">
             <Download size={14} /> Alocar do Geral
           </button>
@@ -64,10 +112,15 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-[3fr_1fr] gap-6">
         {/* Estoque da Obra */}
         <div className="bg-[#111535] rounded-xl p-5 border border-[#2A2F55] flex flex-col">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4">
             <h3 className="text-sm font-bold text-white">Estoque da Obra</h3>
-            <div className="relative">
-              <input type="text" placeholder="Buscar" className="pl-3 pr-3 py-1.5 bg-[#1B1F3B] border border-[#2A2F55] rounded text-sm text-white focus:outline-none focus:border-[#FFCA18]" />
+            <div className="relative w-full sm:w-80 md:w-96">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8F9BB3]" size={16} />
+              <input 
+                type="text" 
+                placeholder="Buscar material na obra..." 
+                className="w-full pl-10 pr-4 py-2.5 bg-[#1B1F3B] border border-[#2A2F55] rounded-xl text-sm text-white focus:outline-none focus:border-[#FFCA18] transition-all" 
+              />
             </div>
           </div>
           

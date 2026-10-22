@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 // Estrutura
 import Layout from './components/Layout';
@@ -17,7 +18,8 @@ import Relatorios from './pages/Relatorios'; // <-- IMPORTAÇÃO ADICIONADA AQUI
 
 export default function App() {
   return (
-    <AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
       <Router>
         <Routes>
           {/* Rota Pública (Não tem menu lateral) */}
@@ -35,5 +37,6 @@ export default function App() {
         </Routes>
       </Router>
     </AuthProvider>
+    </ThemeProvider>
   );
 }

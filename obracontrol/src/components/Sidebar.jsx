@@ -1,14 +1,16 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { auth } from '../firebaseConfig';
 import { signOut } from 'firebase/auth';
-import { HardHat, LayoutDashboard, Package, ArrowRightLeft, FileText, Building2, Power } from 'lucide-react';
+import { HardHat, LayoutDashboard, Package, ArrowRightLeft, FileText, Building2, Power, Sun, Moon } from 'lucide-react';
 
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const checkActive = (path) => location.pathname === path;
 
@@ -83,7 +85,22 @@ export default function Sidebar() {
             <p className="text-sm font-bold text-white truncate">Michael Fonseca</p>
             <p className="text-xs text-[#4A5578]">Administrador</p>
           </div>
-          <button onClick={handleLogout} className="text-[#4A5578] hover:text-red-500 transition-colors p-1">
+          <button 
+            type="button"
+            onClick={toggleTheme} 
+            title={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+            aria-label="Alternar tema"
+            className="text-[#4A5578] hover:text-[#FFCA18] transition-colors p-1"
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          <button 
+            type="button"
+            onClick={handleLogout} 
+            title="Terminar sessão"
+            aria-label="Terminar sessão"
+            className="text-[#4A5578] hover:text-red-500 transition-colors p-1"
+          >
             <Power size={18} />
           </button>
         </div>

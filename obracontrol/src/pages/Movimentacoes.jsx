@@ -6,10 +6,13 @@ export default function Movimentacoes() {
     <div className="animate-fade-in font-sans">
       
       {/* Bloco Topo */}
-      <div className="bg-[#111535] border border-[#2A2F55] rounded-xl p-4 flex justify-between items-center mb-6">
-        <h1 className="text-lg font-bold text-white">Movimentações</h1>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div>
+          <h1 className="text-xl font-bold text-white uppercase tracking-wider">Movimentações</h1>
+          <p className="text-sm text-[#4A5578]">Histórico e transferências de materiais</p>
+        </div>
         <button className="bg-[#1B1F3B] hover:bg-[#2A2F55] border border-[#2A2F55] text-white text-xs font-bold py-2 px-4 rounded transition-colors flex items-center gap-2">
-          Nova Transferência
+          <Plus size={14} /> Nova Transferência
         </button>
       </div>
 

@@ -1,13 +1,19 @@
 import React from 'react';
+import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 
-export default function Layout({ children }) {
+export default function Layout() {
   return (
-    <div className="flex h-screen bg-[#0B0E26] overflow-hidden font-sans">
+    <div className="flex h-screen overflow-hidden bg-[#0B0E26]">
+      {/* Barra lateral fixa */}
       <Sidebar />
-      <main className="flex-1 overflow-y-auto p-4 md:p-8">
-        {children}
-      </main>
+
+      {/* Área onde as telas filhas (Dashboard, Estoque, etc.) são renderizadas */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <main className="flex-1 overflow-y-auto">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

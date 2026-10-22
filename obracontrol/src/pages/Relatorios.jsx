@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { 
   FileText, 
-  ChevronDown, 
+  Filter, 
   FileDown, 
   BarChart3, 
   PieChart, 
@@ -10,22 +10,6 @@ import {
 } from 'lucide-react';
 
 export default function Relatorios() {
-  const [filtroObra, setFiltroObra] = useState('Filtrar Obra');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
-
-  const obras = ['Filtrar Obra', 'Residencial Alpha', 'Edifício Beta', 'Condomínio Solar'];
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDropdownOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   return (
     <div className="animate-fade-in font-sans">
       
@@ -38,46 +22,23 @@ export default function Relatorios() {
           <p className="text-sm text-[#4A5578]">Análises, gráficos e fechamentos de obra</p>
         </div>
         
-        <div className="flex flex-wrap gap-2">
-          {/* Botão Filtrar Obra com Dropdown */}
-          <div className="relative" ref={dropdownRef}>
-            <button 
-              type="button"
-              onClick={() => setIsDropdownOpen(prev => !prev)}
-              className="bg-[#1B1F3B] hover:bg-[#2A2F55] border border-[#2A2F55] text-white text-xs font-bold py-2 px-4 rounded transition-colors flex items-center gap-2"
-            >
-              <ChevronDown size={14} className={`transition-transform duration-150 ${isDropdownOpen ? 'rotate-180' : ''}`} />
-              <span>{filtroObra}</span>
-            </button>
-            {isDropdownOpen && (
-              <div className="absolute left-0 mt-1 min-w-[170px] bg-[#1B1F3B] border border-[#2A2F55] rounded shadow-lg py-1 z-30">
-                {obras.map((obra) => (
-                  <button
-                    key={obra}
-                    type="button"
-                    onClick={() => {
-                      setFiltroObra(obra);
-                      setIsDropdownOpen(false);
-                    }}
-                    className={`w-full text-left px-4 py-2 text-xs font-bold transition-colors ${
-                      filtroObra === obra
-                        ? 'bg-[#2A2F55] text-white'
-                        : 'text-[#8F9BB3] hover:text-white hover:bg-[#2A2F55]'
-                    }`}
-                  >
-                    {obra}
-                  </button>
-                ))}
-              </div>
-            )}
+        <div className="flex flex-wrap gap-3 items-center">
+          {/* Select de Filtro */}
+          <div className="relative">
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4A5578]" size={16} />
+            <select className="pl-9 pr-4 py-2.5 bg-[#1B1F3B] border border-[#2A2F55] rounded-xl text-sm text-white focus:outline-none focus:border-[#FFCA18]/50 appearance-none min-w-[160px] shadow-lg cursor-pointer">
+              <option>Filtrar Obra</option>
+              <option>Residencial Alpha</option>
+              <option>Edifício Beta</option>
+            </select>
           </div>
           
-          {/* Botões de Exportação no mesmo estilo da aba obra */}
-          <button className="bg-[#1B1F3B] hover:bg-[#2A2F55] border border-[#2A2F55] text-white text-xs font-bold py-2 px-4 rounded transition-colors flex items-center gap-2">
-            <FileDown size={14} /> Exportar PDF
+          {/* Botões de Exportação */}
+          <button className="bg-[#E53E3E]/10 hover:bg-[#E53E3E] text-[#E53E3E] hover:text-white border border-[#E53E3E]/20 font-bold text-sm py-2.5 px-4 rounded-xl transition-all flex items-center gap-2 shadow-lg">
+            <FileDown size={18} /> EXPORTAR PDF
           </button>
-          <button className="bg-[#1B1F3B] hover:bg-[#2A2F55] border border-[#2A2F55] text-white text-xs font-bold py-2 px-4 rounded transition-colors flex items-center gap-2">
-            <FileDown size={14} /> Exportar Excel
+          <button className="bg-[#48C774]/10 hover:bg-[#48C774] text-[#48C774] hover:text-white border border-[#48C774]/20 font-bold text-sm py-2.5 px-4 rounded-xl transition-all flex items-center gap-2 shadow-lg">
+            <FileDown size={18} /> EXPORTAR EXCEL
           </button>
         </div>
       </div>

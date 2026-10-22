@@ -2,214 +2,64 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Configuração padrão (Modo Escuro) */
 :root {
-  --azul-fundo: #0B0E26;
-  --azul-painel: #111535;
-  --azul-card: #1B1F3B;
-  --azul-input: #1F2442;
-  --amarelo-destaque: #FFCA18;
-  --verde-sucesso: #1D8A52;
-  --cinza-texto: #8F9BB3;
+  color-scheme: dark;
 }
 
-body {
-  background-color: var(--azul-fundo);
-  color: #FFFFFF;
-  font-family: 'Inter', sans-serif;
-  margin: 0;
-}
-
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--azul-input);
-  border-radius: 4px;
-}
-
-@layer utilities {
-  .bg-azul-fundo { background-color: var(--azul-fundo); }
-  .bg-azul-painel { background-color: var(--azul-painel); }
-  .bg-azul-card { background-color: var(--azul-card); }
-  .bg-azul-input { background-color: var(--azul-input); }
-  .text-cinza-texto { color: var(--cinza-texto); }
-  .text-amarelo-destaque { color: var(--amarelo-destaque); }
-}
-
+/* Configuração para o Modo Claro ativado via data-theme="light" */
 [data-theme='light'] {
-  --azul-fundo: #F3F5F8;
-  --azul-painel: #FFFFFF;
-  --azul-card: #F8FAFC;
-  --azul-input: #FFFFFF;
-  --cinza-texto: #5A6A85;
+  color-scheme: light;
 }
 
-[data-theme='light'] body {
-  background-color: #F3F5F8 !important;
-  color: #0A2540 !important;
-}
-
-aside,
-main,
-.bg-\[\#0B0E26\],
-.bg-\[\#111535\],
-.bg-\[\#1B1F3B\] {
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-}
-
+/* Cores de fundo e painéis principais no modo claro */
 [data-theme='light'] .bg-\[\#0B0E26\] {
-  background-color: #F3F5F8 !important;
-}
-
-[data-theme='light'] aside.bg-\[\#0B0E26\],
-[data-theme='light'] aside {
-  background-color: #FFFFFF !important;
-  border-right-color: #E2E8F0 !important;
-  box-shadow: 1px 0 3px 0 rgba(10, 37, 64, 0.03);
-}
-
-[data-theme='light'] aside h2 {
-  color: #0A2540 !important;
-}
-
-[data-theme='light'] aside .text-\[\#4A5578\] {
-  color: #64748B !important;
-}
-
-[data-theme='light'] aside .text-\[\#8F9BB3\] {
-  color: #475569 !important;
-}
-
-[data-theme='light'] aside .hover\:text-white:hover {
-  color: #0A2540 !important;
-}
-
-[data-theme='light'] aside .hover\:bg-\[\#111535\]:hover {
-  background-color: #F1F5F9 !important;
-}
-
-[data-theme='light'] aside .bg-\[\#111535\] {
   background-color: #F8FAFC !important;
-  border-color: #E2E8F0 !important;
-}
-
-[data-theme='light'] aside .bg-\[\#111535\] p.text-white {
-  color: #0A2540 !important;
-}
-
-[data-theme='light'] aside .bg-\[\#111535\] p.text-\[\#4A5578\] {
-  color: #64748B !important;
 }
 
 [data-theme='light'] .bg-\[\#111535\] {
   background-color: #FFFFFF !important;
-  box-shadow: 0 1px 3px 0 rgba(10, 37, 64, 0.04), 0 1px 2px -1px rgba(10, 37, 64, 0.04) !important;
 }
 
-[data-theme='light'] .bg-\[\#1B1F3B\],
-[data-theme='light'] .bg-\[\#141833\] {
-  background-color: #F8FAFC !important;
-}
-
-[data-theme='light'] .hover\:bg-\[\#1B1F3B\]:hover {
+[data-theme='light'] .bg-\[\#1B1F3B\] {
   background-color: #F1F5F9 !important;
 }
 
-[data-theme='light'] .hover\:bg-\[\#2A2F55\]:hover {
-  background-color: #E2E8F0 !important;
-}
-
-[data-theme='light'] .bg-\[\#2A2F55\] {
-  background-color: #E2E8F0 !important;
-  color: #0A2540 !important;
-}
-
-[data-theme='light'] .border-\[\#1B1F3B\],
 [data-theme='light'] .border-\[\#2A2F55\] {
   border-color: #E2E8F0 !important;
 }
 
-[data-theme='light'] h1,
-[data-theme='light'] h2,
-[data-theme='light'] h3 {
-  color: #0A2540 !important;
-}
-
-[data-theme='light'] p.text-white,
-[data-theme='light'] span.text-white,
-[data-theme='light'] td.text-white,
-[data-theme='light'] label.text-white {
-  color: #0A2540 !important;
+[data-theme='light'] .text-white {
+  color: #0F172A !important;
 }
 
 [data-theme='light'] .text-\[\#8F9BB3\] {
-  color: #475569 !important;
-}
-
-[data-theme='light'] .text-\[\#4A5578\] {
   color: #64748B !important;
 }
 
-[data-theme='light'] table th {
-  background-color: #F8FAFC !important;
+[data-theme='light'] .text-\[\#4A5578\] {
   color: #475569 !important;
-  border-color: #E2E8F0 !important;
 }
 
-[data-theme='light'] table td {
-  border-color: #E2E8F0 !important;
+/* Substituição inteligente dos detalhes amarelos para tons que combinam com o modo claro */
+[data-theme='light'] .text-\[\#FFCA18\] {
+  color: #D97706 !important; /* Âmbar elegante para textos e ícones */
 }
 
-[data-theme='light'] table tr:hover {
-  background-color: #F8FAFC !important;
-}
-
-[data-theme='light'] input,
-[data-theme='light'] select,
-[data-theme='light'] textarea {
-  background-color: #FFFFFF !important;
-  color: #0A2540 !important;
-  border-color: #CBD5E1 !important;
-}
-
-[data-theme='light'] select option {
-  background-color: #FFFFFF !important;
-  color: #0A2540 !important;
-}
-
-[data-theme='light'] input::placeholder {
-  color: #94A3B8 !important;
-}
-
-[data-theme='light'] button.bg-\[\#1B1F3B\] {
-  background-color: #F8FAFC !important;
-  color: #0A2540 !important;
-  border-color: #CBD5E1 !important;
-}
-
-[data-theme='light'] button.bg-\[\#1B1F3B\]:hover {
-  background-color: #EDF2F7 !important;
-  border-color: #94A3B8 !important;
-}
-
-[data-theme='light'] button.bg-\[\#2B8BF6\],
-[data-theme='light'] button.bg-\[\#48C774\],
-[data-theme='light'] button.bg-\[\#E53E3E\],
-[data-theme='light'] .bg-\[\#2B8BF6\] *,
-[data-theme='light'] .bg-\[\#48C774\] *,
-[data-theme='light'] .bg-\[\#E53E3E\] * {
-  color: #FFFFFF !important;
+[data-theme='light'] .hover\:text-\[\#FFCA18\]:hover {
+  color: #B45309 !important;
 }
 
 [data-theme='light'] .bg-\[\#FFCA18\] {
-  color: #0A2540 !important;
+  background-color: #D97706 !important; /* Fundo do botão principal em tom harmonioso */
+  color: #FFFFFF !important; /* Texto branco para contraste perfeito */
 }
 
-[data-theme='light'] .bg-\[\#FFCA18\] * {
-  color: #0A2540 !important;
+[data-theme='light'] .hover\:bg-\[\#e6b616\]:hover {
+  background-color: #B45309 !important;
 }
 
-[data-theme='light'] ::-webkit-scrollbar-thumb {
-  background: #CBD5E1 !important;
+/* Transição suave de cores ao alterar o tema */
+body {
+  transition: background-color 0.2s ease, color 0.2s ease;
 }

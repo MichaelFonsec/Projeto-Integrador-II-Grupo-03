@@ -1,133 +1,372 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { 
-  PackageSearch, Plus, Download, Send, 
-  Layers, DollarSign, AlertTriangle, Tags, Search, Trash2 
-} from 'lucide-react';
+import { Package, PlusCircle, Trash2, Box, Search, DollarSign, Edit, Save, X } from 'lucide-react';
+import { db } from '../firebaseConfig'; 
+import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Estoque() {
-  const [Estoque, setEstoque] = useState([]);
-  const [stats, setStats] = useState({ total: 0, valor: '0,00', minimo: 0, categorias: 5 });
+  const { currentUser, userData } = useAuth();
+  const [materiais, setMateriais] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [termoBusca, setTermoBusca] = useState('');
+
+  const [novoMaterial, setNovoMaterial] = useState({ 
+    nome: '', 
+    fornecedor: '', 
+    quantidade: '', 
+    valorUnitario: '' 
+  });
+  
+  const [editingId, setEditingId] = useState(null); 
+  const [editFormData, setEditFormData] = useState({ 
+    nome: '', 
+    fornecedor: '', 
+    quantidade: '', 
+    valorUnitario: '' 
+  });
 
   useEffect(() => {
-    const fetchEstoque = async () => {
-      const querySnapshot = await getDocs(collection(db, 'Estoque'));
-      const prods = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setEstoque(prods);
-      setStats(prev => ({ ...prev, total: prods.length }));
-    };
     fetchEstoque();
   }, []);
 
-  return (
-    <div className="animate-fade-in font-sans">
+  const fetchEstoque = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'estoque'));
+      const estoqueArray = [];
+      querySnapshot.forEach((docSnap) => {
+        estoqueArray.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      setMateriais(estoqueArray);
+    } catch (error) {
+      console.error("Erro ao buscar estoque:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    setNovoMaterial({ ...novoMaterial, [e.target.name]: e.target.value });
+  };
+
+  const handleAddMaterial = async (e) => {
+    e.preventDefault();
+    if (!novoMaterial.nome || !novoMaterial.quantidade || !novoMaterial.valorUnitario) return;
+
+    setIsSubmitting(true);
+    try {
+      const qtd = Number(novoMaterial.quantidade) || 0;
+      const vUnit = Number(novoMaterial.valorUnitario) || 0;
+
+      const materialParaSalvar = {
+        nome: novoMaterial.nome,
+        fornecedor: novoMaterial.fornecedor || 'Não informado',
+        quantidade: qtd,
+        valorUnitario: vUnit,
+        valorTotal: qtd * vUnit,
+        createdAt: serverTimestamp()
+      };
+
+      const docRef = await addDoc(collection(db, 'estoque'), materialParaSalvar);
+      setMateriais(prev => [...prev, { id: docRef.id, ...materialParaSalvar }]);
       
-      {/* BLOCO TOPO: Título e Botões */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+      // LOG DE ENTRADA
+      await addDoc(collection(db, 'movimentacoes'), {
+        tipo: 'ENTRADA',
+        modulo: 'Estoque Geral',
+        descricao: `Cadastrou ${materialParaSalvar.quantidade} un. de ${materialParaSalvar.nome}`,
+        usuario: userData?.usuario || currentUser?.email || 'Usuário Desconhecido',
+        data: serverTimestamp()
+      });
+
+      setNovoMaterial({ nome: '', fornecedor: '', quantidade: '', valorUnitario: '' });
+    } catch (error) {
+      console.error("Erro ao cadastrar material:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteMaterial = async (id, nome) => {
+    const confirmar = window.confirm(`Tem certeza que deseja excluir "${nome}" do estoque?`);
+    if (confirmar) {
+      try {
+        await deleteDoc(doc(db, 'estoque', id));
+        setMateriais(prev => prev.filter(item => item.id !== id));
+
+        // LOG DE EXCLUSÃO
+        await addDoc(collection(db, 'movimentacoes'), {
+          tipo: 'EXCLUSAO',
+          modulo: 'Estoque Geral',
+          descricao: `Excluiu o material ${nome} do estoque`,
+          usuario: userData?.usuario || currentUser?.email || 'Usuário Desconhecido',
+          data: serverTimestamp()
+        });
+      } catch (error) {
+        console.error("Erro ao excluir material:", error);
+      }
+    }
+  };
+
+  const handleEditClick = (item) => {
+    setEditingId(item.id);
+    setEditFormData({ 
+      nome: item.nome || '', 
+      fornecedor: item.fornecedor || '', 
+      quantidade: item.quantidade ?? '', 
+      valorUnitario: item.valorUnitario ?? '' 
+    });
+  };
+
+  const handleEditChange = (e) => {
+    setEditFormData({ ...editFormData, [e.target.name]: e.target.value });
+  };
+  
+  const handleCancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const handleSaveEdit = async (id) => {
+    try {
+      const docRef = doc(db, 'estoque', id);
+      const qtd = Number(editFormData.quantidade) || 0;
+      const vUnit = Number(editFormData.valorUnitario) || 0;
+      const dadosAtualizados = {
+        nome: editFormData.nome,
+        fornecedor: editFormData.fornecedor || 'Não informado',
+        quantidade: qtd,
+        valorUnitario: vUnit,
+        valorTotal: qtd * vUnit
+      };
+
+      await updateDoc(docRef, dadosAtualizados);
+      setMateriais(prev => prev.map(item => item.id === id ? { ...item, ...dadosAtualizados } : item));
+      setEditingId(null);
+
+      // LOG DE EDIÇÃO
+      await addDoc(collection(db, 'movimentacoes'), {
+        tipo: 'EDICAO',
+        modulo: 'Estoque Geral',
+        descricao: `Editou as informações do material: ${dadosAtualizados.nome}`,
+        usuario: userData?.usuario || currentUser?.email || 'Usuário Desconhecido',
+        data: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar material:", error);
+    }
+  };
+
+  const materiaisFiltrados = materiais.filter(item => 
+    (item.nome || '').toLowerCase().includes(termoBusca.toLowerCase()) || 
+    (item.fornecedor || '').toLowerCase().includes(termoBusca.toLowerCase())
+  );
+  
+  // Cálculos reativos atualizados a cada renderização
+  const totalItens = materiais.reduce((acc, item) => acc + (Number(item.quantidade) || 0), 0);
+
+  const valorTotalEstoque = materiais.reduce((acc, item) => {
+    const q = Number(item.quantidade) || 0;
+    const v = Number(item.valorUnitario) || 0;
+    const t = Number(item.valorTotal) || (q * v);
+    return acc + (isNaN(t) ? 0 : t);
+  }, 0);
+
+  return (
+    <div className="flex-1 bg-[#0B0E26] min-h-screen p-8 text-white overflow-y-auto transition-colors duration-200">
+      
+      {/* Cabeçalho */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-xl font-bold text-white uppercase tracking-wider">Estoque Geral</h1>
-          <p className="text-sm text-[#4A5578]">Gestão central de materiais</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Estoque Geral</h1>
+          <p className="text-[#8F9BB3]">Cadastre e gerencie os materiais disponíveis no galpão.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <button className="bg-[#2B8BF6] hover:bg-[#2072ce] text-white font-bold text-sm py-2 px-4 rounded-xl transition-colors flex items-center gap-2 shadow-lg">
-            <Plus size={16} /> CADASTRAR MATERIAL
-          </button>
-          <button className="bg-[#48C774] hover:bg-[#3ca862] text-white font-bold text-sm py-2 px-4 rounded-xl transition-colors flex items-center gap-2 shadow-lg">
-            <Download size={16} /> ENTRADA DE ESTOQUE
-          </button>
-          <button className="bg-[#FFCA18] hover:bg-[#e6b616] text-[#0B0E26] font-bold text-sm py-2 px-4 rounded-xl transition-colors flex items-center gap-2 shadow-lg">
-            <Send size={16} /> ALOCAR PARA OBRA
-          </button>
-        </div>
-      </div>
-
-      {/* RESUMO: 4 Caixas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 flex items-center gap-4">
-          <div className="bg-[#2B8BF6]/10 p-3 rounded-xl text-[#2B8BF6]"><Layers size={24} /></div>
-          <div>
-            <p className="text-[10px] font-bold text-[#8F9BB3] uppercase tracking-widest mb-1">Total de Materiais</p>
-            <h3 className="text-2xl font-extrabold text-white">{stats.total}</h3>
+        
+        <div className="flex flex-wrap gap-4">
+          <div className="bg-[#111535] border border-[#2A2F55] rounded-xl px-6 py-3 flex items-center gap-4 shadow-lg transition-colors">
+            <div className="bg-[#FFCA18]/10 p-2 rounded-lg text-[#FFCA18]">
+              <Box size={24} />
+            </div>
+            <div>
+              <p className="text-xs text-[#8F9BB3] font-bold uppercase tracking-wider">Total de Itens</p>
+              <p className="text-xl font-bold text-white">{totalItens}</p>
+            </div>
           </div>
-        </div>
-        <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 flex items-center gap-4">
-          <div className="bg-[#48C774]/10 p-3 rounded-xl text-[#48C774]"><DollarSign size={24} /></div>
-          <div>
-            <p className="text-[10px] font-bold text-[#8F9BB3] uppercase tracking-widest mb-1">Valor em Estoque</p>
-            <h3 className="text-2xl font-extrabold text-white">R$ {stats.valor}</h3>
-          </div>
-        </div>
-        <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 flex items-center gap-4">
-          <div className="bg-[#E53E3E]/10 p-3 rounded-xl text-[#E53E3E]"><AlertTriangle size={24} /></div>
-          <div>
-            <p className="text-[10px] font-bold text-[#8F9BB3] uppercase tracking-widest mb-1">Estoque Mínimo</p>
-            <h3 className="text-2xl font-extrabold text-white">{stats.minimo}</h3>
-          </div>
-        </div>
-        <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 flex items-center gap-4">
-          <div className="bg-[#FFCA18]/10 p-3 rounded-xl text-[#FFCA18]"><Tags size={24} /></div>
-          <div>
-            <p className="text-[10px] font-bold text-[#8F9BB3] uppercase tracking-widest mb-1">Categorias</p>
-            <h3 className="text-2xl font-extrabold text-white">{stats.categorias}</h3>
+          
+          <div className="bg-[#111535] border border-[#2A2F55] rounded-xl px-6 py-3 flex items-center gap-4 shadow-lg transition-colors">
+            <div className="bg-green-500/10 p-2 rounded-lg text-green-400">
+              <DollarSign size={24} />
+            </div>
+            <div>
+              <p className="text-xs text-[#8F9BB3] font-bold uppercase tracking-wider">Valor Imobilizado</p>
+              <p className="text-xl font-bold text-white">
+                R$ {Number(valorTotalEstoque).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* PAINEL DE TABELA */}
-      <div className="bg-[#111535] rounded-2xl p-6 border border-[#2A2F55] shadow-lg">
-        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#4A5578]" size={18} />
+      {/* Formulário de Cadastro */}
+      <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 shadow-xl mb-8 transition-colors">
+        <h2 className="text-lg font-bold border-b border-[#2A2F55] pb-3 mb-5 text-[#FFCA18] flex items-center gap-2">
+          <PlusCircle size={20} /> Cadastrar Novo Material no Estoque
+        </h2>
+        
+        <form onSubmit={handleAddMaterial} className="flex flex-col lg:flex-row gap-4 items-end">
+          <div className="flex-1 w-full">
+            <label className="text-sm font-bold text-[#8F9BB3] mb-2 block">Nome do Material</label>
+            <input 
+              type="text" 
+              name="nome" 
+              value={novoMaterial.nome} 
+              onChange={handleInputChange} 
+              required 
+              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none transition-colors" 
+            />
+          </div>
+          
+          <div className="flex-1 w-full">
+            <label className="text-sm font-bold text-[#8F9BB3] mb-2 block">Fornecedor (Opcional)</label>
+            <input 
+              type="text" 
+              name="fornecedor" 
+              value={novoMaterial.fornecedor} 
+              onChange={handleInputChange} 
+              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none transition-colors" 
+            />
+          </div>
+          
+          <div className="w-full lg:w-32">
+            <label className="text-sm font-bold text-[#8F9BB3] mb-2 block">Qtd.</label>
+            <input 
+              type="number" 
+              name="quantidade" 
+              value={novoMaterial.quantidade} 
+              onChange={handleInputChange} 
+              required 
+              min="1" 
+              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none transition-colors" 
+            />
+          </div>
+          
+          <div className="w-full lg:w-40">
+            <label className="text-sm font-bold text-[#8F9BB3] mb-2 block">V. Unit. (R$)</label>
+            <input 
+              type="number" 
+              step="0.01" 
+              name="valorUnitario" 
+              value={novoMaterial.valorUnitario} 
+              onChange={handleInputChange} 
+              required 
+              min="0" 
+              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none transition-colors" 
+            />
+          </div>
+          
+          <button 
+            type="submit" 
+            disabled={isSubmitting} 
+            className="w-full lg:w-auto px-8 py-3 bg-[#FFCA18] hover:bg-[#e6b616] text-[#0B0E26] rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 h-[50px] transition-colors"
+          >
+            {isSubmitting ? 'Salvando...' : 'Adicionar'}
+          </button>
+        </form>
+      </div>
+
+      {/* Tabela do Estoque */}
+      <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl shadow-xl overflow-hidden transition-colors">
+        <div className="p-6 border-b border-[#2A2F55] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <Package className="text-[#FFCA18]" size={24} />
+            <h2 className="text-lg font-bold text-white">Materiais Guardados</h2>
+          </div>
+          <div className="relative w-full md:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4A5578]" size={18} />
             <input 
               type="text" 
               placeholder="Buscar material..." 
-              className="w-full pl-11 pr-4 py-3 bg-[#1B1F3B] border border-[#2A2F55] rounded-xl text-sm text-white focus:outline-none focus:border-[#2B8BF6]"
+              value={termoBusca} 
+              onChange={(e) => setTermoBusca(e.target.value)} 
+              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:border-[#FFCA18] outline-none transition-colors" 
             />
           </div>
-          <select className="bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#2B8BF6] w-full sm:w-auto min-w-[200px]">
-            <option>Todas as Categorias</option>
-            <option>Hidráulica</option>
-            <option>Elétrica</option>
-          </select>
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[800px]">
-            <thead>
-              <tr>
-                <th className="text-[10px] font-bold text-[#4A5578] uppercase tracking-widest border-b border-[#2A2F55] pb-3 pl-2">Material</th>
-                <th className="text-[10px] font-bold text-[#4A5578] uppercase tracking-widest border-b border-[#2A2F55] pb-3">Categoria</th>
-                <th className="text-[10px] font-bold text-[#4A5578] uppercase tracking-widest border-b border-[#2A2F55] pb-3">Unidade</th>
-                <th className="text-[10px] font-bold text-[#4A5578] uppercase tracking-widest border-b border-[#2A2F55] pb-3">Saldo Geral</th>
-                <th className="text-[10px] font-bold text-[#4A5578] uppercase tracking-widest border-b border-[#2A2F55] pb-3">Mínimo</th>
-                <th className="text-[10px] font-bold text-[#4A5578] uppercase tracking-widest border-b border-[#2A2F55] pb-3">Custo Unitário</th>
-                <th className="text-[10px] font-bold text-[#4A5578] uppercase tracking-widest border-b border-[#2A2F55] pb-3 text-right pr-2">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Estoque.map(prod => (
-                <tr key={prod.id} className="group hover:bg-[#1B1F3B] transition-colors">
-                  <td className="py-4 pl-2 border-b border-[#2A2F55] text-sm text-white font-bold flex items-center gap-3">
-                    <div className="bg-[#1B1F3B] p-2 rounded-lg border border-[#2A2F55]"><PackageSearch size={16} className="text-[#8F9BB3]" /></div>
-                    {prod.nome}
-                  </td>
-                  <td className="py-4 border-b border-[#2A2F55] text-sm text-[#8F9BB3]">Geral</td>
-                  <td className="py-4 border-b border-[#2A2F55] text-sm text-[#8F9BB3]">UN</td>
-                  <td className={`py-4 border-b border-[#2A2F55] text-sm font-bold ${prod.quantidade <= prod.estoqueMinimo ? 'text-[#E53E3E]' : 'text-[#48C774]'}`}>
-                    {prod.quantidade}
-                  </td>
-                  <td className="py-4 border-b border-[#2A2F55] text-sm text-[#8F9BB3]">{prod.estoqueMinimo}</td>
-                  <td className="py-4 border-b border-[#2A2F55] text-sm text-[#8F9BB3]">R$ 0,00</td>
-                  <td className="py-4 pr-2 border-b border-[#2A2F55] text-right">
-                    <button className="text-[#2B8BF6] hover:text-white text-xs font-bold mr-3">Editar</button>
-                    <button className="text-[#FFCA18] hover:text-white text-xs font-bold">Alocar</button>
-                  </td>
+        
+        {loading ? (
+          <div className="p-10 text-center text-[#8F9BB3]">Carregando estoque...</div>
+        ) : materiaisFiltrados.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm min-w-[800px]">
+              <thead className="bg-[#1B1F3B] text-[#8F9BB3]">
+                <tr>
+                  <th className="px-6 py-4 font-bold w-1/3">Material</th>
+                  <th className="px-6 py-4 font-bold w-1/4">Fornecedor</th>
+                  <th className="px-6 py-4 font-bold text-center w-24">Qtd.</th>
+                  <th className="px-6 py-4 font-bold w-32">V. Unitário</th>
+                  <th className="px-6 py-4 font-bold w-32">Valor Total</th>
+                  <th className="px-6 py-4 font-bold text-center w-24">Ações</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-[#2A2F55]">
+                {materiaisFiltrados.map((item) => {
+                  const qtdNum = Number(item.quantidade) || 0;
+                  const vUnitNum = Number(item.valorUnitario) || 0;
+                  const vTotalNum = Number(item.valorTotal) || (qtdNum * vUnitNum);
+
+                  return (
+                    <tr key={item.id} className="hover:bg-[#1B1F3B] transition-colors">
+                      {editingId === item.id ? (
+                        <>
+                          <td className="p-2">
+                            <input type="text" name="nome" value={editFormData.nome} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white focus:border-[#FFCA18] outline-none text-sm transition-colors" />
+                          </td>
+                          <td className="p-2">
+                            <input type="text" name="fornecedor" value={editFormData.fornecedor} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white focus:border-[#FFCA18] outline-none text-sm transition-colors" />
+                          </td>
+                          <td className="p-2">
+                            <input type="number" name="quantidade" min="0" value={editFormData.quantidade} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white text-center focus:border-[#FFCA18] outline-none text-sm transition-colors" />
+                          </td>
+                          <td className="p-2">
+                            <input type="number" name="valorUnitario" step="0.01" min="0" value={editFormData.valorUnitario} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white focus:border-[#FFCA18] outline-none text-sm transition-colors" />
+                          </td>
+                          <td className="px-6 py-4 font-bold text-green-400">
+                            R$ {( (Number(editFormData.quantidade) || 0) * (Number(editFormData.valorUnitario) || 0) ).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button onClick={() => handleSaveEdit(item.id)} className="text-green-400 hover:bg-green-400/10 p-2 rounded-lg transition-colors"><Save size={18} /></button>
+                              <button onClick={handleCancelEdit} className="text-[#8F9BB3] hover:text-white hover:bg-[#2A2F55] p-2 rounded-lg transition-colors"><X size={18} /></button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-6 py-4 font-medium text-white">{item.nome}</td>
+                          <td className="px-6 py-4 text-[#8F9BB3]">{item.fornecedor}</td>
+                          <td className="px-6 py-4 text-center font-bold text-white">
+                            <span className="bg-[#1B1F3B] px-3 py-1 rounded-lg border border-[#2A2F55]">{qtdNum}</span>
+                          </td>
+                          <td className="px-6 py-4 text-[#8F9BB3]">R$ {vUnitNum.toFixed(2)}</td>
+                          <td className="px-6 py-4 font-bold text-green-400">R$ {vTotalNum.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button onClick={() => handleEditClick(item)} className="text-[#FFCA18] hover:bg-[#FFCA18]/10 p-2 rounded-lg transition-colors"><Edit size={18} /></button>
+                              <button onClick={() => handleDeleteMaterial(item.id, item.nome)} className="text-[#4A5578] hover:text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                            </div>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-10 text-center text-[#8F9BB3]">
+            {termoBusca ? 'Nenhum material encontrado.' : 'Estoque vazio.'}
+          </div>
+        )}
       </div>
     </div>
   );

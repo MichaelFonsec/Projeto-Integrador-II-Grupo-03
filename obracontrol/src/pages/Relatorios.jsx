@@ -17,6 +17,67 @@ import {
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import ResponsiveTable from '../components/ResponsiveTable';
+
+const formatarReais = (v) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+
+const resumirObra = (obra) => {
+  const orcamento = Number(obra.orcamentoTotal || obra.orcamento || 0);
+  const gasto = obra.materiais_utilizados
+    ? obra.materiais_utilizados.reduce((acc, m) => acc + (Number(m.valorTotal) || 0), 0)
+    : 0;
+  return { orcamento, gasto, saldo: orcamento - gasto };
+};
+
+const colunasObras = [
+  {
+    key: 'nome',
+    header: 'Obra',
+    primary: true,
+    textClassName: 'font-bold text-white',
+    render: (obra) => obra.nome
+  },
+  {
+    key: 'status',
+    header: 'Status',
+    badge: true,
+    render: (obra) => (
+      <span className="inline-block whitespace-nowrap px-3 py-1 bg-[#1B1F3B] border border-[#2A2F55] rounded-full text-xs font-medium text-[#8F9BB3]">
+        {obra.status || 'Em Andamento'}
+      </span>
+    )
+  },
+  {
+    key: 'orcamento',
+    header: 'Orçamento',
+    textClassName: 'font-bold text-white',
+    render: (obra) => formatarReais(resumirObra(obra).orcamento)
+  },
+  {
+    key: 'gasto',
+    header: 'Total Gasto',
+    textClassName: 'font-bold text-red-400',
+    render: (obra) => formatarReais(resumirObra(obra).gasto)
+  },
+  {
+    key: 'saldo',
+    header: 'Saldo / Diferença',
+    textClassName: 'font-bold',
+    render: (obra) => {
+      const { saldo } = resumirObra(obra);
+      return <span className={saldo >= 0 ? 'text-green-400' : 'text-red-400'}>{formatarReais(saldo)}</span>;
+    }
+  }
+];
+
+const acoesObra = (obra) => [
+  {
+    label: 'Ver Obra',
+    icon: Eye,
+    variant: 'info',
+    onClick: () => { window.location.href = `/obra/${obra.id}`; }
+  }
+];
 
 export default function Relatorios() {
   const [obras, setObras] = useState([]);
@@ -196,25 +257,25 @@ export default function Relatorios() {
   }
 
   return (
-    <div className="flex-1 bg-[#0B0E26] min-h-screen p-8 text-white overflow-y-auto transition-colors duration-200">
+    <div className="flex-1 bg-[#0B0E26] p-4 sm:p-6 md:p-8 text-white transition-colors duration-200 min-w-0">
       
       {/* BLOCO TOPO: Título e Botões */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-8">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-wide flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-wide flex items-center gap-2">
             <FileText size={26} className="text-[#FFCA18]" /> RELATÓRIOS & ANÁLISES
           </h1>
-          <p className="text-sm text-[#8F9BB3] mt-1">Indicadores financeiros, controlo de stock e fechamento de obras</p>
+          <p className="text-xs sm:text-sm text-[#8F9BB3] mt-1">Indicadores financeiros, controlo de stock e fechamento de obras</p>
         </div>
         
-        <div className="flex flex-wrap gap-3 items-center">
+        <div className="flex flex-wrap gap-2.5 sm:gap-3 items-center w-full xl:w-auto">
           {/* Select de Filtro por Obra */}
-          <div className="relative">
+          <div className="relative flex-1 sm:flex-initial min-w-[180px]">
             <Filter className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8F9BB3]" size={16} />
             <select 
               value={obraSelecionada} 
               onChange={(e) => setObraSelecionada(e.target.value)}
-              className="pl-10 pr-6 py-2.5 bg-[#111535] border border-[#2A2F55] rounded-xl text-sm text-white focus:outline-none focus:border-[#FFCA18] appearance-none min-w-[200px] shadow-lg cursor-pointer transition-colors"
+              className="w-full pl-10 pr-6 py-2.5 bg-[#111535] border border-[#2A2F55] rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:border-[#FFCA18] appearance-none shadow-lg cursor-pointer transition-colors"
             >
               <option value="TODAS">Todas as Obras</option>
               {obras.map(o => (
@@ -226,13 +287,13 @@ export default function Relatorios() {
           {/* Botões de Exportação */}
           <button 
             onClick={exportarPDF}
-            className="bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/20 font-bold text-xs py-2.5 px-4 rounded-xl transition-all flex items-center gap-2 shadow-lg cursor-pointer"
+            className="flex-1 sm:flex-initial justify-center bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/20 font-bold text-xs py-2.5 px-4 rounded-xl transition-all flex items-center gap-2 shadow-lg cursor-pointer"
           >
             <FileDown size={16} /> EXPORTAR PDF
           </button>
           <button 
             onClick={exportarExcel}
-            className="bg-green-500/10 hover:bg-green-500 text-green-400 hover:text-white border border-green-500/20 font-bold text-xs py-2.5 px-4 rounded-xl transition-all flex items-center gap-2 shadow-lg cursor-pointer"
+            className="flex-1 sm:flex-initial justify-center bg-green-500/10 hover:bg-green-500 text-green-400 hover:text-white border border-green-500/20 font-bold text-xs py-2.5 px-4 rounded-xl transition-all flex items-center gap-2 shadow-lg cursor-pointer"
           >
             <FileDown size={16} /> EXPORTAR EXCEL
           </button>
@@ -240,7 +301,7 @@ export default function Relatorios() {
       </div>
 
       {/* CARDS DE RESUMO FINANCEIRO */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
         <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-5 shadow-xl flex items-center gap-4">
           <div className="bg-[#FFCA18]/10 p-3.5 rounded-xl text-[#FFCA18]">
             <Building2 size={24} />
@@ -360,62 +421,19 @@ export default function Relatorios() {
       </div>
 
       {/* TABELA DE FECHAMENTO DE OBRAS */}
-      <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 shadow-xl">
-        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-6 flex items-center gap-2">
-          <FolderArchive size={18} className="text-green-400" /> Fechamento e Resumo de Obras
-        </h3>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[750px]">
-            <thead>
-              <tr className="border-b border-[#2A2F55]">
-                <th className="text-[11px] font-bold text-[#8F9BB3] uppercase tracking-wider pb-3 pl-3">Obra</th>
-                <th className="text-[11px] font-bold text-[#8F9BB3] uppercase tracking-wider pb-3">Status</th>
-                <th className="text-[11px] font-bold text-[#8F9BB3] uppercase tracking-wider pb-3">Orçamento</th>
-                <th className="text-[11px] font-bold text-[#8F9BB3] uppercase tracking-wider pb-3">Total Gasto</th>
-                <th className="text-[11px] font-bold text-[#8F9BB3] uppercase tracking-wider pb-3">Saldo / Diferença</th>
-                <th className="text-[11px] font-bold text-[#8F9BB3] uppercase tracking-wider pb-3 text-right pr-3">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#2A2F55]/50">
-              {obras.length > 0 ? (
-                obras.map(obra => {
-                  const orc = Number(obra.orcamentoTotal || obra.orcamento || 0);
-                  const gasto = obra.materiais_utilizados ? obra.materiais_utilizados.reduce((acc, m) => acc + (Number(m.valorTotal) || 0), 0) : 0;
-                  const saldo = orc - gasto;
-
-                  return (
-                    <tr key={obra.id} className="group hover:bg-[#1B1F3B]/50 transition-colors">
-                      <td className="py-4 pl-3 text-sm text-white font-bold">{obra.nome}</td>
-                      <td className="py-4 text-sm text-[#8F9BB3]">
-                        <span className="px-3 py-1 bg-[#1B1F3B] border border-[#2A2F55] rounded-full text-xs font-medium">
-                          {obra.status || 'Em Andamento'}
-                        </span>
-                      </td>
-                      <td className="py-4 text-sm font-bold text-white">R$ {orc.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="py-4 text-sm font-bold text-red-400">R$ {gasto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className={`py-4 text-sm font-bold ${saldo >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        R$ {saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-4 pr-3 text-right">
-                        <button 
-                          onClick={() => window.location.href = `/obra/${obra.id}`}
-                          className="bg-[#1B1F3B] hover:bg-[#2A2F55] border border-[#2A2F55] text-sky-400 text-xs font-bold px-3 py-2 rounded-xl transition-colors inline-flex items-center gap-1.5 shadow cursor-pointer"
-                        >
-                          <Eye size={14} /> Ver Obra
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan="6" className="py-8 text-center text-[#8F9BB3] text-sm">Nenhuma obra registada para fechamento.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl shadow-xl overflow-hidden mb-8">
+        <div className="p-4 sm:p-6 border-b border-[#2A2F55] flex items-center gap-3">
+          <FolderArchive size={22} className="text-green-400" />
+          <h2 className="text-base sm:text-lg font-bold text-white">Fechamento e Resumo de Obras</h2>
         </div>
+        
+        <ResponsiveTable
+          columns={colunasObras}
+          data={obras}
+          actions={acoesObra}
+          cardCols={3}
+          emptyMessage="Nenhuma obra registada para fechamento."
+        />
       </div>
 
     </div>

@@ -46,16 +46,16 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <div className="flex-1 bg-[#0B0E26] min-h-screen p-8 text-white overflow-y-auto transition-colors duration-200">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+    <div className="flex-1 bg-[#0B0E26] p-4 sm:p-6 md:p-8 text-white transition-colors duration-200 min-w-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Painel Principal</h1>
-          <p className="text-[#8F9BB3]">Acompanhe o resumo das obras e o inventário em tempo real.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">Painel Principal</h1>
+          <p className="text-sm sm:text-base text-[#8F9BB3]">Acompanhe o resumo das obras e o inventário em tempo real.</p>
         </div>
         
         <button 
           onClick={() => navigate('/nova-obra')}
-          className="px-6 py-3 bg-[#FFCA18] hover:bg-[#e6b616] text-[#0B0E26] rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg"
+          className="w-full sm:w-auto justify-center px-6 py-3 bg-[#FFCA18] hover:bg-[#e6b616] text-[#0B0E26] rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg cursor-pointer"
         >
           <Plus size={20} /> Nova Obra
         </button>

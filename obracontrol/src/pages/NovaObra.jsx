@@ -4,6 +4,35 @@ import { useNavigate } from 'react-router-dom';
 import { db } from '../firebaseConfig'; 
 import { collection, getDocs, doc, writeBatch, serverTimestamp, increment } from 'firebase/firestore'; 
 import { useAuth } from '../contexts/AuthContext';
+import ResponsiveTable from '../components/ResponsiveTable';
+
+const colunasAlocados = [
+  {
+    key: 'nome',
+    header: 'Material',
+    primary: true,
+    textClassName: 'font-medium text-white',
+    render: (item) => (
+      <>
+        {item.nome}
+        <span className="block text-xs font-normal text-[#8F9BB3] mt-1 break-words">{item.fornecedor}</span>
+      </>
+    )
+  },
+  {
+    key: 'quantidade',
+    header: 'Qtd Alocada',
+    align: 'center',
+    textClassName: 'font-bold text-white',
+    render: (item) => item.quantidade
+  },
+  {
+    key: 'valorTotal',
+    header: 'Valor Total',
+    textClassName: 'font-medium text-red-400',
+    render: (item) => `R$ ${item.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+  }
+];
 
 export default function NovaObra() {
   const { currentUser, userData } = useAuth();
@@ -159,7 +188,7 @@ export default function NovaObra() {
   };
 
   return (
-    <div className="flex-1 bg-[#0B0E26] min-h-screen p-8 text-white overflow-y-auto">
+    <div className="flex-1 bg-[#0B0E26] p-4 sm:p-6 md:p-8 text-white transition-colors duration-200 min-w-0">
       
       <div className="flex items-center gap-4 mb-10">
         <button 
@@ -303,41 +332,19 @@ export default function NovaObra() {
             </div>
 
             {materiais.length > 0 && (
-              <div className="bg-[#1B1F3B] rounded-xl border border-[#2A2F55] overflow-hidden mt-4">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-[#2A2F55] text-white">
-                    <tr>
-                      <th className="px-4 py-3 font-bold">Material</th>
-                      <th className="px-4 py-3 font-bold text-center">Qtd Alocada</th>
-                      <th className="px-4 py-3 font-bold">Valor Total</th>
-                      <th className="px-4 py-3 font-bold text-center">Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#2A2F55]">
-                    {materiais.map((item, index) => (
-                      <tr key={index} className="hover:bg-[#2A2F55]/50 transition-colors">
-                        <td className="px-4 py-3 text-white font-medium">
-                          {item.nome} 
-                          <span className="block text-xs text-[#8F9BB3] mt-1">{item.fornecedor}</span>
-                        </td>
-                        <td className="px-4 py-3 text-white text-center font-bold">{item.quantidade}</td>
-                        <td className="px-4 py-3 text-red-400 font-medium">
-                          R$ {item.valorTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <button 
-                            type="button" 
-                            onClick={() => handleRemoveMaterial(index)} 
-                            className="text-[#4A5578] hover:text-red-500 transition-colors p-1 rounded-lg"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ResponsiveTable
+                columns={colunasAlocados}
+                data={materiais}
+                rowKey={(_, index) => index}
+                actions={(item, index) => [
+                  { label: 'Remover', icon: Trash2, variant: 'danger', iconOnly: true, onClick: () => handleRemoveMaterial(index) }
+                ]}
+                actionsHeader="Ação"
+                actionsAlign="center"
+                className="bg-[#1B1F3B] rounded-xl border border-[#2A2F55] overflow-hidden mt-4"
+                headerClassName="bg-[#2A2F55] text-white"
+                cardClassName="bg-[#111535] border border-[#2A2F55]"
+              />
             )}
           </div>
 

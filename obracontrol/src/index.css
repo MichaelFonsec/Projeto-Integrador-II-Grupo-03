@@ -25,8 +25,21 @@
   background-color: #F1F5F9 !important;
 }
 
-[data-theme='light'] .border-\[\#2A2F55\] {
+[data-theme='light'] .border-\[\#2A2F55\],
+[data-theme='light'] .border-\[\#1B1F3B\] {
   border-color: #E2E8F0 !important;
+}
+
+[data-theme='light'] .hover\:bg-\[\#111535\]:hover {
+  background-color: #E2E8F0 !important;
+}
+
+[data-theme='light'] .hover\:bg-\[\#1B1F3B\]:hover {
+  background-color: rgb(27 31 59 / 0.5) !important;
+}
+
+[data-theme='light'] .hover\:text-white:hover {
+  color: #0F172A !important;
 }
 
 [data-theme='light'] .text-white {

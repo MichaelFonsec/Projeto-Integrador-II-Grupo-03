@@ -3,10 +3,48 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebaseConfig';
 import { doc, getDoc, updateDoc, deleteDoc, collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
+import ResponsiveTable from '../components/ResponsiveTable';
 import { 
   Building2, ArrowLeft, MapPin, DollarSign, CheckCircle, Calendar, 
   Package, FileText, Edit, Trash2, Save, X, AlertCircle, Plus 
 } from 'lucide-react';
+
+const colunasMateriais = [
+  {
+    key: 'nome',
+    header: 'Material',
+    primary: true,
+    textClassName: 'font-medium text-white',
+    render: (mat) => mat.nome
+  },
+  {
+    key: 'fornecedor',
+    header: 'Fornecedor',
+    textClassName: 'text-[#8F9BB3]',
+    render: (mat) => mat.fornecedor || 'Não informado'
+  },
+  {
+    key: 'quantidade',
+    header: 'Quantidade',
+    align: 'center',
+    textClassName: 'font-bold text-white',
+    render: (mat) => (
+      <span className="inline-block bg-[#1B1F3B] px-3 py-1 rounded-lg border border-[#2A2F55]">{mat.quantidade}</span>
+    )
+  },
+  {
+    key: 'valorUnitario',
+    header: 'V. Unitário',
+    textClassName: 'text-[#8F9BB3]',
+    render: (mat) => `R$ ${Number(mat.valorUnitario || 0).toFixed(2)}`
+  },
+  {
+    key: 'valorTotal',
+    header: 'Valor Total',
+    textClassName: 'font-bold text-green-400',
+    render: (mat) => `R$ ${Number(mat.valorTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+  }
+];
 
 export default function Obra() {
   const { id } = useParams();
@@ -207,7 +245,7 @@ export default function Obra() {
   }
 
   return (
-    <div className="flex-1 bg-[#0B0E26] min-h-screen p-8 text-white overflow-y-auto transition-colors duration-200">
+    <div className="flex-1 bg-[#0B0E26] p-4 sm:p-6 md:p-8 text-white transition-colors duration-200 min-w-0">
       
       {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -485,38 +523,12 @@ export default function Obra() {
               <h2 className="text-lg font-bold text-white">Materiais Utilizados nesta Obra (Integrados ao Estoque)</h2>
             </div>
 
-            {obra.materiais_utilizados && obra.materiais_utilizados.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm min-w-[700px]">
-                  <thead className="bg-[#1B1F3B] text-[#8F9BB3]">
-                    <tr>
-                      <th className="px-6 py-4 font-bold">Material</th>
-                      <th className="px-6 py-4 font-bold">Fornecedor</th>
-                      <th className="px-6 py-4 font-bold text-center">Quantidade</th>
-                      <th className="px-6 py-4 font-bold">V. Unitário</th>
-                      <th className="px-6 py-4 font-bold">Valor Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#2A2F55]">
-                    {obra.materiais_utilizados.map((mat, index) => (
-                      <tr key={index} className="hover:bg-[#1B1F3B] transition-colors">
-                        <td className="px-6 py-4 font-medium text-white">{mat.nome}</td>
-                        <td className="px-6 py-4 text-[#8F9BB3]">{mat.fornecedor || 'Não informado'}</td>
-                        <td className="px-6 py-4 text-center font-bold text-white">
-                          <span className="bg-[#1B1F3B] px-3 py-1 rounded-lg border border-[#2A2F55]">{mat.quantidade}</span>
-                        </td>
-                        <td className="px-6 py-4 text-[#8F9BB3]">R$ {Number(mat.valorUnitario || 0).toFixed(2)}</td>
-                        <td className="px-6 py-4 font-bold text-green-400">R$ {Number(mat.valorTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="p-10 text-center text-[#8F9BB3]">
-                Nenhum material registado nesta obra.
-              </div>
-            )}
+            <ResponsiveTable
+              columns={colunasMateriais}
+              data={obra.materiais_utilizados || []}
+              rowKey={(_, index) => index}
+              emptyMessage="Nenhum material registado nesta obra."
+            />
           </div>
         </>
       )}

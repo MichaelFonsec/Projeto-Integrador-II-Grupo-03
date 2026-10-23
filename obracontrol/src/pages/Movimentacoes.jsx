@@ -3,6 +3,7 @@ import { History, Search, ArrowDownLeft, ArrowUpRight, Edit, Trash2, User, Clock
 import { db } from '../firebaseConfig';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
+import ResponsiveTable from '../components/ResponsiveTable';
 
 export default function Movimentacoes() {
   const { currentUser, userData } = useAuth(); 
@@ -68,35 +69,89 @@ export default function Movimentacoes() {
 
   const nomeUsuarioLogado = userData?.usuario || currentUser?.email;
 
+  const colunasMovimentacoes = [
+    {
+      key: 'data',
+      header: 'Data e Hora',
+      textClassName: 'text-[#8F9BB3]',
+      render: (mov) => (
+        <div className="flex items-center gap-2">
+          <Clock size={14} className="shrink-0" />
+          <span>{formatarData(mov.data)}</span>
+        </div>
+      )
+    },
+    {
+      key: 'modulo',
+      header: 'Módulo',
+      textClassName: 'font-medium text-white',
+      render: (mov) => mov.modulo
+    },
+    {
+      key: 'tipo',
+      header: 'Tipo',
+      badge: true,
+      render: (mov) => {
+        const config = getTipoConfig(mov.tipo);
+        return (
+          <span className={`inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1 rounded-lg text-xs font-bold ${config.corFundo} ${config.corTexto}`}>
+            {config.icone} {mov.tipo}
+          </span>
+        );
+      }
+    },
+    {
+      key: 'descricao',
+      header: 'Descrição da Ação',
+      primary: true,
+      textClassName: 'text-white',
+      render: (mov) => mov.descricao
+    },
+    {
+      key: 'usuario',
+      header: 'Usuário',
+      textClassName: 'text-[#8F9BB3]',
+      render: (mov) => (
+        <div className="flex items-center gap-2 min-w-0">
+          <User size={14} className="shrink-0" />
+          <span className="min-w-0 break-words md:truncate md:max-w-[10rem] font-medium text-white" title={mov.usuario}>
+            {mov.usuario}
+            {nomeUsuarioLogado === mov.usuario && <span className="text-[#FFCA18] text-xs ml-1">(Você)</span>}
+          </span>
+        </div>
+      )
+    }
+  ];
+
   return (
-    <div className="flex-1 bg-[#0B0E26] min-h-screen p-8 text-white overflow-y-auto">
+    <div className="flex-1 bg-[#0B0E26] p-4 sm:p-6 md:p-8 text-white transition-colors duration-200 min-w-0">
       
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 sm:mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Histórico de Movimentações</h1>
-          <p className="text-[#8F9BB3]">Auditoria de entradas, saídas e alterações no sistema.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">Histórico de Movimentações</h1>
+          <p className="text-sm sm:text-base text-[#8F9BB3]">Auditoria de entradas, saídas e alterações no sistema.</p>
         </div>
       </div>
 
-      <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-4 mb-8 flex flex-col md:flex-row gap-4 items-center shadow-lg">
+      <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-4 mb-6 sm:mb-8 flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center shadow-lg">
         
-        <div className="relative w-full md:flex-1">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4A5578]" size={18} />
           <input 
             type="text" 
             placeholder="Buscar por descrição ou nome do usuário..." 
             value={termoBusca}
             onChange={(e) => setTermoBusca(e.target.value)}
-            className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl pl-10 pr-4 py-3 text-sm text-white focus:border-[#FFCA18] outline-none transition-colors"
+            className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl pl-10 pr-4 py-2.5 sm:py-3 text-sm text-white focus:border-[#FFCA18] outline-none transition-colors"
           />
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto border-t md:border-t-0 md:border-l border-[#2A2F55] pt-4 md:pt-0 md:pl-4">
-          <Filter size={18} className="text-[#8F9BB3]" />
+        <div className="flex items-center gap-2 sm:gap-3 border-t sm:border-t-0 sm:border-l border-[#2A2F55] pt-3 sm:pt-0 sm:pl-4">
+          <Filter size={18} className="text-[#8F9BB3] shrink-0" />
           <select 
             value={filtroTipo} 
             onChange={(e) => setFiltroTipo(e.target.value)}
-            className="bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-sm text-white focus:border-[#FFCA18] outline-none cursor-pointer"
+            className="w-full sm:w-auto bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-2.5 sm:py-3 text-sm text-white focus:border-[#FFCA18] outline-none cursor-pointer"
           >
             <option value="TODOS">Todos os Tipos</option>
             <option value="ENTRADA">Entradas (Estoque)</option>
@@ -109,70 +164,18 @@ export default function Movimentacoes() {
       </div>
 
       <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl shadow-xl overflow-hidden">
-        <div className="p-6 border-b border-[#2A2F55] flex items-center gap-3">
-          <History className="text-[#FFCA18]" size={24} />
-          <h2 className="text-lg font-bold text-white">Registro de Atividades</h2>
+        <div className="p-4 sm:p-6 border-b border-[#2A2F55] flex items-center gap-3">
+          <History className="text-[#FFCA18]" size={22} />
+          <h2 className="text-base sm:text-lg font-bold text-white">Registro de Atividades</h2>
         </div>
         
-        {loading ? (
-          <div className="p-10 text-center text-[#8F9BB3]">Carregando histórico...</div>
-        ) : movimentacoesFiltradas.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm min-w-[800px]">
-              <thead className="bg-[#1B1F3B] text-[#8F9BB3]">
-                <tr>
-                  <th className="px-6 py-4 font-bold w-48">Data e Hora</th>
-                  <th className="px-6 py-4 font-bold w-32">Módulo</th>
-                  <th className="px-6 py-4 font-bold w-40">Tipo</th>
-                  <th className="px-6 py-4 font-bold">Descrição da Ação</th>
-                  <th className="px-6 py-4 font-bold w-48">Usuário</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#2A2F55]">
-                {movimentacoesFiltradas.map((mov) => {
-                  const config = getTipoConfig(mov.tipo);
-                  
-                  return (
-                    <tr key={mov.id} className="hover:bg-[#1B1F3B]/50 transition-colors">
-                      <td className="px-6 py-4 text-[#8F9BB3]">
-                        <div className="flex items-center gap-2">
-                          <Clock size={14} />
-                          {formatarData(mov.data)}
-                        </div>
-                      </td>
-                      
-                      <td className="px-6 py-4 font-medium text-white">
-                        {mov.modulo}
-                      </td>
-                      
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold ${config.corFundo} ${config.corTexto}`}>
-                          {config.icone} {mov.tipo}
-                        </span>
-                      </td>
-                      
-                      <td className="px-6 py-4 text-white">
-                        {mov.descricao}
-                      </td>
-                      
-                      <td className="px-6 py-4 text-[#8F9BB3]">
-                        <div className="flex items-center gap-2">
-                          <User size={14} />
-                          <span className="truncate max-w-[150px] font-medium text-white" title={mov.usuario}>
-                            {mov.usuario}
-                            {nomeUsuarioLogado === mov.usuario && <span className="text-[#FFCA18] text-xs ml-1">(Você)</span>}
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="p-10 text-center text-[#8F9BB3]">Nenhum registro encontrado.</div>
-        )}
+        <ResponsiveTable
+          columns={colunasMovimentacoes}
+          data={movimentacoesFiltradas}
+          loading={loading}
+          loadingMessage="Carregando histórico..."
+          emptyMessage="Nenhum registro encontrado."
+        />
       </div>
 
     </div>

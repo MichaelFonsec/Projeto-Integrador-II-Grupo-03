@@ -15,12 +15,35 @@ export default function Movimentacoes() {
   useEffect(() => {
     const fetchMovimentacoes = async () => {
       try {
+        // 1. Busca todos os documentos da coleção 'usuarios' para criar um mapa de email -> nome
+        const usuariosSnapshot = await getDocs(collection(db, 'usuarios'));
+        const mapaUsuarios = {};
+        usuariosSnapshot.forEach((docSnap) => {
+          const dados = docSnap.data();
+          const emailUser = dados.email ? String(dados.email).trim().toLowerCase() : '';
+          const nomeUser = dados.nome || dados.usuario || dados.name;
+          if (emailUser && nomeUser) {
+            mapaUsuarios[emailUser] = nomeUser;
+          }
+        });
+
+        // 2. Busca as movimentações ordenadas por data
         const q = query(collection(db, 'movimentacoes'), orderBy('data', 'desc'));
         const querySnapshot = await getDocs(q);
         
         const historicoArray = [];
         querySnapshot.forEach((doc) => {
-          historicoArray.push({ id: doc.id, ...doc.data() });
+          const dadosDoc = doc.data();
+          const emailMovimento = dadosDoc.usuario ? String(dadosDoc.usuario).trim().toLowerCase() : '';
+
+          // Substitui o e-mail pelo nome correspondente encontrado na coleção 'usuarios'
+          const nomeExibicao = mapaUsuarios[emailMovimento] || dadosDoc.usuario;
+
+          historicoArray.push({ 
+            id: doc.id, 
+            ...dadosDoc, 
+            usuario: nomeExibicao // Atualiza o campo de usuário com o nome real
+          });
         });
         
         setMovimentacoes(historicoArray);

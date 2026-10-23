@@ -3,11 +3,11 @@ import { Package, PlusCircle, Trash2, Box, Search, DollarSign, Edit, Save, X } f
 import { db } from '../firebaseConfig'; 
 import { collection, addDoc, doc, deleteDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
-import ResponsiveTable from '../components/ResponsiveTable';
 
 export default function Estoque() {
   const { currentUser, userData } = useAuth();
   const [materiais, setMateriais] = useState([]);
+  const [fornecedores, setFornecedores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [termoBusca, setTermoBusca] = useState('');
@@ -27,9 +27,9 @@ export default function Estoque() {
     valorUnitario: '' 
   });
 
-  // Escuta em tempo real (onSnapshot) para atualizar o estoque automaticamente
+  // Escuta em tempo real do Estoque e dos Fornecedores
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'estoque'), (querySnapshot) => {
+    const unsubEstoque = onSnapshot(collection(db, 'estoque'), (querySnapshot) => {
       const estoqueArray = [];
       querySnapshot.forEach((docSnap) => {
         estoqueArray.push({ id: docSnap.id, ...docSnap.data() });
@@ -37,11 +37,24 @@ export default function Estoque() {
       setMateriais(estoqueArray);
       setLoading(false);
     }, (error) => {
-      console.error("Erro ao carregar o estoque em tempo real:", error);
+      console.error("Erro ao carregar estoque:", error);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Puxa os fornecedores cadastrados (suporta coleções 'empresas' ou 'fornecedores')
+    const unsubEmpresas = onSnapshot(collection(db, 'empresas'), (snapshot) => {
+      const lista = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        lista.push(data.razaoSocial || data.nomeFantasia || 'Empresa sem nome');
+      });
+      setFornecedores(lista);
+    });
+
+    return () => {
+      unsubEstoque();
+      unsubEmpresas();
+    };
   }, []);
 
   const handleInputChange = (e) => {
@@ -88,7 +101,6 @@ export default function Estoque() {
     if (window.confirm(`Tem a certeza que deseja excluir "${nome}" do estoque?`)) {
       try {
         await deleteDoc(doc(db, 'estoque', id));
-
         await addDoc(collection(db, 'movimentacoes'), {
           tipo: 'EXCLUSAO',
           modulo: 'Estoque Geral',
@@ -135,14 +147,6 @@ export default function Estoque() {
 
       await updateDoc(docRef, dadosAtualizados);
       setEditingId(null);
-
-      await addDoc(collection(db, 'movimentacoes'), {
-        tipo: 'EDICAO',
-        modulo: 'Estoque Geral',
-        descricao: `Editou as informações do material: ${dadosAtualizados.nome}`,
-        usuario: userData?.usuario || currentUser?.email || 'Utilizador',
-        data: serverTimestamp()
-      });
     } catch (error) {
       console.error("Erro ao atualizar material:", error);
     }
@@ -153,148 +157,72 @@ export default function Estoque() {
     (item.fornecedor || '').toLowerCase().includes(termoBusca.toLowerCase())
   );
   
-  // Cálculos dinâmicos baseados no estado reativo do Firestore
   const totalItens = materiais.reduce((acc, item) => acc + (Number(item.quantidade) || 0), 0);
-
-  const valorTotalEstoque = materiais.reduce((acc, item) => {
-    const q = Number(item.quantidade) || 0;
-    const v = Number(item.valorUnitario) || 0;
-    const t = Number(item.valorTotal) || (q * v);
-    return acc + (isNaN(t) ? 0 : t);
-  }, 0);
-
-  const inputEdicao = 'w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white text-sm min-h-[44px] md:min-h-0';
-  const formatarMoeda = (v) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-
-  const colunasEstoque = [
-    {
-      key: 'nome',
-      header: 'Material',
-      primary: true,
-      textClassName: 'font-medium text-white',
-      render: (item) => editingId === item.id
-        ? <input type="text" name="nome" value={editFormData.nome} onChange={handleEditChange} className={inputEdicao} />
-        : item.nome
-    },
-    {
-      key: 'fornecedor',
-      header: 'Fornecedor',
-      textClassName: 'text-[#8F9BB3]',
-      render: (item) => editingId === item.id
-        ? <input type="text" name="fornecedor" value={editFormData.fornecedor} onChange={handleEditChange} className={inputEdicao} />
-        : item.fornecedor
-    },
-    {
-      key: 'quantidade',
-      header: 'Qtd.',
-      align: 'center',
-      textClassName: 'font-bold text-white',
-      render: (item) => editingId === item.id
-        ? <input type="number" name="quantidade" min="0" value={editFormData.quantidade} onChange={handleEditChange} className={`${inputEdicao} text-center`} />
-        : <span className="inline-block bg-[#1B1F3B] px-3 py-1 rounded-lg border border-[#2A2F55]">{Number(item.quantidade) || 0}</span>
-    },
-    {
-      key: 'valorUnitario',
-      header: 'V. Unitário',
-      textClassName: 'text-[#8F9BB3]',
-      render: (item) => editingId === item.id
-        ? <input type="number" name="valorUnitario" step="0.01" min="0" value={editFormData.valorUnitario} onChange={handleEditChange} className={inputEdicao} />
-        : `R$ ${(Number(item.valorUnitario) || 0).toFixed(2)}`
-    },
-    {
-      key: 'valorTotal',
-      header: 'Valor Total',
-      textClassName: 'font-bold text-green-400',
-      render: (item) => {
-        if (editingId === item.id) {
-          return `R$ ${formatarMoeda((Number(editFormData.quantidade) || 0) * (Number(editFormData.valorUnitario) || 0))}`;
-        }
-        const q = Number(item.quantidade) || 0;
-        const v = Number(item.valorUnitario) || 0;
-        return `R$ ${formatarMoeda(Number(item.valorTotal) || (q * v))}`;
-      }
-    }
-  ];
-
-  const acoesEstoque = (item) => editingId === item.id
-    ? [
-        { label: 'Salvar', icon: Save, variant: 'success', iconOnly: true, onClick: () => handleSaveEdit(item.id) },
-        { label: 'Cancelar', icon: X, variant: 'neutral', iconOnly: true, onClick: handleCancelEdit }
-      ]
-    : [
-        { label: 'Editar', icon: Edit, variant: 'primary', iconOnly: true, onClick: () => handleEditClick(item) },
-        { label: 'Excluir', icon: Trash2, variant: 'danger', iconOnly: true, onClick: () => handleDeleteMaterial(item.id, item.nome) }
-      ];
+  const valorTotalEstoque = materiais.reduce((acc, item) => acc + (Number(item.valorTotal) || (Number(item.quantidade || 0) * Number(item.valorUnitario || 0))), 0);
 
   return (
-    <div className="flex-1 bg-[#0B0E26] p-4 sm:p-6 md:p-8 text-white transition-colors duration-200 min-w-0">
-      
-      {/* Cabeçalho e Métricas */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 sm:mb-8 gap-4">
+    <div className="flex-1 bg-[#0B0E26] min-h-screen p-8 text-white overflow-y-auto">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">Estoque Geral</h1>
-          <p className="text-sm sm:text-base text-[#8F9BB3]">Cadastre e gerencie os materiais disponíveis no galpão.</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Estoque Geral</h1>
+          <p className="text-[#8F9BB3]">Gerencie os materiais e vincule aos fornecedores cadastrados.</p>
         </div>
         
-        <div className="flex flex-wrap gap-3 sm:gap-4 w-full md:w-auto">
-          <div className="bg-[#111535] border border-[#2A2F55] rounded-xl px-4 sm:px-6 py-3 flex items-center gap-3 sm:gap-4 shadow-lg flex-1 sm:flex-initial">
-            <div className="bg-[#FFCA18]/10 p-2 rounded-lg text-[#FFCA18] shrink-0">
-              <Box size={22} />
-            </div>
+        <div className="flex flex-wrap gap-4">
+          <div className="bg-[#111535] border border-[#2A2F55] rounded-xl px-6 py-3 flex items-center gap-4 shadow-lg">
+            <div className="bg-[#FFCA18]/10 p-2 rounded-lg text-[#FFCA18]"><Box size={24} /></div>
             <div>
               <p className="text-xs text-[#8F9BB3] font-bold uppercase tracking-wider">Total de Itens</p>
-              <p className="text-lg sm:text-xl font-bold text-white">{totalItens}</p>
+              <p className="text-xl font-bold text-white">{totalItens}</p>
             </div>
           </div>
           
-          <div className="bg-[#111535] border border-[#2A2F55] rounded-xl px-4 sm:px-6 py-3 flex items-center gap-3 sm:gap-4 shadow-lg flex-1 sm:flex-initial">
-            <div className="bg-green-500/10 p-2 rounded-lg text-green-400 shrink-0">
-              <DollarSign size={22} />
-            </div>
+          <div className="bg-[#111535] border border-[#2A2F55] rounded-xl px-6 py-3 flex items-center gap-4 shadow-lg">
+            <div className="bg-green-500/10 p-2 rounded-lg text-green-400"><DollarSign size={24} /></div>
             <div>
               <p className="text-xs text-[#8F9BB3] font-bold uppercase tracking-wider">Valor Imobilizado</p>
-              <p className="text-lg sm:text-xl font-bold text-white">
-                R$ {Number(valorTotalEstoque).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
+              <p className="text-xl font-bold text-white">R$ {Number(valorTotalEstoque).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Formulário de Cadastro */}
-      <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-4 sm:p-6 shadow-xl mb-6 sm:mb-8">
-        <h2 className="text-base sm:text-lg font-bold border-b border-[#2A2F55] pb-3 mb-5 text-[#FFCA18] flex items-center gap-2">
+      {/* Formulário */}
+      <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 shadow-xl mb-8">
+        <h2 className="text-lg font-bold border-b border-[#2A2F55] pb-3 mb-5 text-[#FFCA18] flex items-center gap-2">
           <PlusCircle size={20} /> Cadastrar Novo Material no Estoque
         </h2>
         
-        <form onSubmit={handleAddMaterial} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end">
-          <div className="sm:col-span-2 lg:col-span-4">
-            <label className="text-xs sm:text-sm font-bold text-[#8F9BB3] mb-2 block">Nome do Material</label>
+        <form onSubmit={handleAddMaterial} className="flex flex-col lg:flex-row gap-4 items-end">
+          <div className="flex-1 w-full">
+            <label className="text-sm font-bold text-[#8F9BB3] mb-2 block">Nome do Material</label>
             <input 
               type="text" 
               name="nome" 
               value={novoMaterial.nome} 
               onChange={handleInputChange} 
               required 
-              placeholder="Ex: Cimento CP-II"
-              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-sm text-white focus:border-[#FFCA18] outline-none" 
+              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none" 
             />
           </div>
           
-          <div className="sm:col-span-2 lg:col-span-3">
-            <label className="text-xs sm:text-sm font-bold text-[#8F9BB3] mb-2 block">Fornecedor (Opcional)</label>
-            <input 
-              type="text" 
+          <div className="flex-1 w-full">
+            <label className="text-sm font-bold text-[#8F9BB3] mb-2 block">Fornecedor (Cadastrado)</label>
+            <select 
               name="fornecedor" 
               value={novoMaterial.fornecedor} 
               onChange={handleInputChange} 
-              placeholder="Ex: Votorantim"
-              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-sm text-white focus:border-[#FFCA18] outline-none" 
-            />
+              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none cursor-pointer"
+            >
+              <option value="">Selecione um fornecedor...</option>
+              {fornecedores.map((forn, index) => (
+                <option key={index} value={forn}>{forn}</option>
+              ))}
+            </select>
           </div>
           
-          <div className="sm:col-span-1 lg:col-span-2">
-            <label className="text-xs sm:text-sm font-bold text-[#8F9BB3] mb-2 block">Qtd.</label>
+          <div className="w-full lg:w-32">
+            <label className="text-sm font-bold text-[#8F9BB3] mb-2 block">Qtd.</label>
             <input 
               type="number" 
               name="quantidade" 
@@ -302,13 +230,12 @@ export default function Estoque() {
               onChange={handleInputChange} 
               required 
               min="1" 
-              placeholder="0"
-              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-sm text-white focus:border-[#FFCA18] outline-none" 
+              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none" 
             />
           </div>
           
-          <div className="sm:col-span-1 lg:col-span-2">
-            <label className="text-xs sm:text-sm font-bold text-[#8F9BB3] mb-2 block">V. Unit. (R$)</label>
+          <div className="w-full lg:w-40">
+            <label className="text-sm font-bold text-[#8F9BB3] mb-2 block">V. Unit. (R$)</label>
             <input 
               type="number" 
               step="0.01" 
@@ -317,51 +244,100 @@ export default function Estoque() {
               onChange={handleInputChange} 
               required 
               min="0" 
-              placeholder="0,00"
-              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-sm text-white focus:border-[#FFCA18] outline-none" 
+              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none" 
             />
           </div>
           
-          <div className="sm:col-span-2 lg:col-span-1">
-            <button 
-              type="submit" 
-              disabled={isSubmitting} 
-              className="w-full px-4 py-3 bg-[#FFCA18] hover:bg-[#e6b616] text-[#0B0E26] rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 h-[48px] shadow-lg cursor-pointer"
-            >
-              {isSubmitting ? 'Salvando...' : 'Adicionar'}
-            </button>
-          </div>
+          <button 
+            type="submit" 
+            disabled={isSubmitting} 
+            className="w-full lg:w-auto px-8 py-3 bg-[#FFCA18] hover:bg-[#e6b616] text-[#0B0E26] rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 h-[50px] cursor-pointer"
+          >
+            {isSubmitting ? 'A salvar...' : 'Adicionar'}
+          </button>
         </form>
       </div>
 
-      {/* Tabela de Materiais */}
+      {/* Tabela */}
       <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl shadow-xl overflow-hidden">
-        <div className="p-4 sm:p-6 border-b border-[#2A2F55] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="p-6 border-b border-[#2A2F55] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-3">
-            <Package className="text-[#FFCA18]" size={22} />
-            <h2 className="text-base sm:text-lg font-bold text-white">Materiais Guardados</h2>
+            <Package className="text-[#FFCA18]" size={24} />
+            <h2 className="text-lg font-bold text-white">Materiais Guardados</h2>
           </div>
-          <div className="relative w-full sm:w-72">
+          <div className="relative w-full md:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4A5578]" size={18} />
             <input 
               type="text" 
               placeholder="Buscar material..." 
               value={termoBusca} 
               onChange={(e) => setTermoBusca(e.target.value)} 
-              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-[#FFCA18] outline-none" 
+              className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:border-[#FFCA18] outline-none" 
             />
           </div>
         </div>
         
-        <ResponsiveTable
-          columns={colunasEstoque}
-          data={materiaisFiltrados}
-          actions={acoesEstoque}
-          actionsAlign="center"
-          loading={loading}
-          loadingMessage="A carregar estoque..."
-          emptyMessage={termoBusca ? 'Nenhum material encontrado.' : 'Estoque vazio.'}
-        />
+        {loading ? (
+          <div className="p-10 text-center text-[#8F9BB3]">A carregar estoque...</div>
+        ) : materiaisFiltrados.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm min-w-[800px]">
+              <thead className="bg-[#1B1F3B] text-[#8F9BB3]">
+                <tr>
+                  <th className="px-6 py-4 font-bold w-1/3">Material</th>
+                  <th className="px-6 py-4 font-bold w-1/4">Fornecedor</th>
+                  <th className="px-6 py-4 font-bold text-center w-24">Qtd.</th>
+                  <th className="px-6 py-4 font-bold w-32">V. Unitário</th>
+                  <th className="px-6 py-4 font-bold w-32">Valor Total</th>
+                  <th className="px-6 py-4 font-bold text-center w-24">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#2A2F55]">
+                {materiaisFiltrados.map((item) => {
+                  const qtdNum = Number(item.quantidade) || 0;
+                  const vUnitNum = Number(item.valorUnitario) || 0;
+                  const vTotalNum = Number(item.valorTotal) || (qtdNum * vUnitNum);
+
+                  return (
+                    <tr key={item.id} className="hover:bg-[#1B1F3B] transition-colors">
+                      {editingId === item.id ? (
+                        <>
+                          <td className="p-2"><input type="text" name="nome" value={editFormData.nome} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white text-sm" /></td>
+                          <td className="p-2"><input type="text" name="fornecedor" value={editFormData.fornecedor} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white text-sm" /></td>
+                          <td className="p-2"><input type="number" name="quantidade" min="0" value={editFormData.quantidade} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white text-center text-sm" /></td>
+                          <td className="p-2"><input type="number" name="valorUnitario" step="0.01" min="0" value={editFormData.valorUnitario} onChange={handleEditChange} className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-lg px-3 py-2 text-white text-sm" /></td>
+                          <td className="px-6 py-4 font-bold text-green-400">R$ {( (Number(editFormData.quantidade) || 0) * (Number(editFormData.valorUnitario) || 0) ).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button onClick={() => handleSaveEdit(item.id)} className="text-green-400 hover:bg-green-400/10 p-2 rounded-lg cursor-pointer"><Save size={18} /></button>
+                              <button onClick={handleCancelEdit} className="text-[#8F9BB3] hover:text-white p-2 rounded-lg cursor-pointer"><X size={18} /></button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-6 py-4 font-medium text-white">{item.nome}</td>
+                          <td className="px-6 py-4 text-[#8F9BB3]">{item.fornecedor}</td>
+                          <td className="px-6 py-4 text-center font-bold text-white"><span className="bg-[#1B1F3B] px-3 py-1 rounded-lg border border-[#2A2F55]">{qtdNum}</span></td>
+                          <td className="px-6 py-4 text-[#8F9BB3]">R$ {vUnitNum.toFixed(2)}</td>
+                          <td className="px-6 py-4 font-bold text-green-400">R$ {vTotalNum.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button onClick={() => handleEditClick(item)} className="text-[#FFCA18] hover:bg-[#FFCA18]/10 p-2 rounded-lg cursor-pointer"><Edit size={18} /></button>
+                              <button onClick={() => handleDeleteMaterial(item.id, item.nome)} className="text-red-400 hover:bg-red-500/10 p-2 rounded-lg cursor-pointer"><Trash2 size={18} /></button>
+                            </div>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-10 text-center text-[#8F9BB3]">{termoBusca ? 'Nenhum material encontrado.' : 'Estoque vazio.'}</div>
+        )}
       </div>
     </div>
   );

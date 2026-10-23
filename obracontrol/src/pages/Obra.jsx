@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebaseConfig';
-import { doc, getDoc, updateDoc, deleteDoc, collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs, addDoc, serverTimestamp, writeBatch, increment } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import ResponsiveTable from '../components/ResponsiveTable';
 import { 
   Building2, ArrowLeft, MapPin, DollarSign, CheckCircle, Calendar, 
-  Package, FileText, Edit, Trash2, Save, X, AlertCircle, Plus 
+  Package, Edit, Trash2, Save, X, AlertCircle, Plus 
 } from 'lucide-react';
 
 const colunasMateriais = [
@@ -19,17 +19,23 @@ const colunasMateriais = [
   },
   {
     key: 'fornecedor',
-    header: 'Fornecedor',
+    header: 'Fornecedor do Material',
     textClassName: 'text-[#8F9BB3]',
-    render: (mat) => mat.fornecedor || 'Não informado'
+    render: (mat) => (
+      <span className="bg-[#0B0E26] px-3 py-1 rounded-lg border border-[#2A2F55] text-xs text-[#FFCA18] font-semibold">
+        {mat.fornecedor || 'Não informado'}
+      </span>
+    )
   },
   {
     key: 'quantidade',
-    header: 'Quantidade',
+    header: 'Quantidade Utilizada',
     align: 'center',
     textClassName: 'font-bold text-white',
     render: (mat) => (
-      <span className="inline-block bg-[#1B1F3B] px-3 py-1 rounded-lg border border-[#2A2F55]">{mat.quantidade}</span>
+      <span className="inline-block bg-[#1B1F3B] px-3 py-1 rounded-lg border border-[#2A2F55]">
+        {mat.quantidade} un.
+      </span>
     )
   },
   {
@@ -61,7 +67,7 @@ export default function Obra() {
     nome: '',
     local: '',
     orcamentoTotal: '',
-    status: 'Em Andamento',
+    status: 'Em andamento',
     data: '',
     materiais_utilizados: []
   });
@@ -77,7 +83,6 @@ export default function Obra() {
   const carregarDadosIniciais = async () => {
     setLoading(true);
     try {
-      // 1. Busca os dados da obra
       const docRef = doc(db, 'obras', id);
       const docSnap = await getDoc(docRef);
 
@@ -88,13 +93,12 @@ export default function Obra() {
           nome: dados.nome || '',
           local: dados.local || '',
           orcamentoTotal: dados.orcamentoTotal || '',
-          status: dados.status || 'Em Andamento',
+          status: dados.status || 'Em andamento',
           data: dados.data || '',
           materiais_utilizados: dados.materiais_utilizados || []
         });
       }
 
-      // 2. Busca os itens disponíveis no Estoque Geral para vincular na obra
       const estoqueSnapshot = await getDocs(collection(db, 'estoque'));
       const itensEstoque = [];
       estoqueSnapshot.forEach((docSnap) => {
@@ -113,7 +117,6 @@ export default function Obra() {
     setEditFormData({ ...editFormData, [e.target.name]: e.target.value });
   };
 
-  // Quando o usuário seleciona um item do estoque na lista
   const handleSelectEstoqueItem = (index, estoqueId) => {
     const itemSelecionado = estoqueGeral.find(item => item.id === estoqueId);
     const novosMateriais = [...editFormData.materiais_utilizados];
@@ -165,15 +168,25 @@ export default function Obra() {
     setEditFormData({ ...editFormData, materiais_utilizados: novosMateriais });
   };
 
+  const totalGastoEdicao = editFormData.materiais_utilizados.reduce((acc, m) => acc + (Number(m.valorTotal) || 0), 0);
+  const orcamentoEdicaoNum = Number(editFormData.orcamentoTotal) || 0;
+  const saldoRestanteEdicao = orcamentoEdicaoNum - totalGastoEdicao;
+
   const handleSaveEdit = async (e) => {
     e.preventDefault();
+
+    if (orcamentoEdicaoNum > 0 && totalGastoEdicao > orcamentoEdicaoNum) {
+      alert(`Erro: O valor total dos materiais (R$ ${totalGastoEdicao.toFixed(2)}) não pode ultrapassar o orçamento total da obra (R$ ${orcamentoEdicaoNum.toFixed(2)}).`);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const docRef = doc(db, 'obras', id);
       const dadosAtualizados = {
         nome: editFormData.nome,
         local: editFormData.local,
-        orcamentoTotal: Number(editFormData.orcamentoTotal) || 0,
+        orcamentoTotal: orcamentoEdicaoNum,
         status: editFormData.status,
         data: editFormData.data,
         materiais_utilizados: editFormData.materiais_utilizados,
@@ -187,12 +200,12 @@ export default function Obra() {
       await addDoc(collection(db, 'movimentacoes'), {
         tipo: 'EDICAO',
         modulo: 'Obras',
-        descricao: `Atualizou os dados e materiais da obra: ${editFormData.nome}`,
-        usuario: userData?.usuario || currentUser?.email || 'Usuário',
+        descricao: `Atualizou os dados da obra: ${editFormData.nome} (Status: ${editFormData.status})`,
+        usuario: userData?.usuario || currentUser?.email || 'Utilizador',
         data: serverTimestamp()
       });
 
-      alert("Obra e materiais atualizados com sucesso!");
+      alert("Obra atualizada com sucesso!");
     } catch (error) {
       console.error("Erro ao atualizar obra:", error);
       alert("Erro ao salvar alterações.");
@@ -201,22 +214,49 @@ export default function Obra() {
     }
   };
 
+  // EXCLUSÃO DE OBRA: Regra de devolução de materiais conforme o status
   const handleDeleteObra = async () => {
-    if (window.confirm(`Tem certeza que deseja excluir permanentemente a obra "${obra?.nome}"?`)) {
+    const estaConcluida = obra?.status === 'Concluída';
+    
+    const mensagemConfirmacao = estaConcluida
+      ? `Tem a certeza que deseja excluir permanentemente a obra concluída "${obra?.nome}"? (Como a obra já está concluída, os materiais NÃO retornarão ao estoque)`
+      : `Tem a certeza que deseja excluir permanentemente a obra "${obra?.nome}"? (Os materiais utilizados serão devolvidos ao estoque)`;
+
+    if (window.confirm(mensagemConfirmacao)) {
       try {
-        await deleteDoc(doc(db, 'obras', id));
-        
-        await addDoc(collection(db, 'movimentacoes'), {
-          tipo: 'EXCLUSAO',
-          modulo: 'Obras',
-          descricao: `Excluiu a obra: ${obra?.nome}`,
-          usuario: userData?.usuario || currentUser?.email || 'Usuário',
+        const batch = writeBatch(db);
+
+        // Retornar os materiais ao estoque APENAS SE A OBRA NÃO ESTIVER CONCLUÍDA
+        if (!estaConcluida && obra?.materiais_utilizados && Array.isArray(obra.materiais_utilizados)) {
+          obra.materiais_utilizados.forEach((mat) => {
+            if (mat.estoqueId && mat.quantidade) {
+              const estoqueRef = doc(db, 'estoque', mat.estoqueId);
+              batch.update(estoqueRef, { quantidade: increment(Number(mat.quantidade)) });
+            }
+          });
+        }
+
+        // Apagar a obra
+        const obraRef = doc(db, 'obras', id);
+        batch.delete(obraRef);
+
+        // Registar log
+        const logRef = doc(collection(db, 'movimentacoes'));
+        batch.set(logRef, {
+          tipo: estaConcluida ? 'EXCLUSAO (Concluída)' : 'EXCLUSAO / DEVOLUCAO',
+          modulo: 'Obras -> Estoque',
+          descricao: estaConcluida
+            ? `Excluiu a obra concluída "${obra?.nome}" (materiais não retornaram ao estoque).`
+            : `Excluiu a obra "${obra?.nome}" e retornou os materiais ao estoque.`,
+          usuario: userData?.usuario || currentUser?.email || 'Utilizador',
           data: serverTimestamp()
         });
 
+        await batch.commit();
         navigate('/');
       } catch (error) {
         console.error("Erro ao excluir obra:", error);
+        alert("Erro ao excluir a obra. Verifique a consola.");
       }
     }
   };
@@ -236,7 +276,7 @@ export default function Obra() {
         <p className="text-[#8F9BB3] text-lg">Obra não encontrada ou ID inválido.</p>
         <button 
           onClick={() => navigate('/')}
-          className="px-6 py-3 bg-[#FFCA18] text-[#0B0E26] rounded-xl font-bold hover:bg-[#e6b616] transition-colors flex items-center gap-2"
+          className="px-6 py-3 bg-[#FFCA18] text-[#0B0E26] rounded-xl font-bold hover:bg-[#e6b616] transition-colors flex items-center gap-2 cursor-pointer"
         >
           <ArrowLeft size={18} /> Voltar para o Painel
         </button>
@@ -244,22 +284,25 @@ export default function Obra() {
     );
   }
 
+  const totalGastoMateriais = (obra.materiais_utilizados || []).reduce((acc, m) => acc + (Number(m.valorTotal) || 0), 0);
+  const orcamentoTotalNum = Number(obra.orcamentoTotal) || 0;
+  const saldoRestanteObra = orcamentoTotalNum - totalGastoMateriais;
+
   return (
-    <div className="flex-1 bg-[#0B0E26] p-4 sm:p-6 md:p-8 text-white transition-colors duration-200 min-w-0">
+    <div className="flex-1 bg-[#0B0E26] p-4 sm:p-6 md:p-8 text-white transition-colors duration-200 min-w-0 overflow-y-auto">
       
-      {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div className="flex items-center gap-4">
           <button 
             onClick={() => navigate('/')}
-            className="p-3 bg-[#111535] border border-[#2A2F55] rounded-xl text-[#8F9BB3] hover:text-white hover:border-[#FFCA18] transition-colors"
+            className="p-3 bg-[#111535] border border-[#2A2F55] rounded-xl text-[#8F9BB3] hover:text-white hover:border-[#FFCA18] transition-colors cursor-pointer"
             title="Voltar"
           >
             <ArrowLeft size={20} />
           </button>
           <div>
             <h1 className="text-3xl font-bold text-white mb-1">{obra.nome}</h1>
-            <p className="text-[#8F9BB3]">Informações detalhadas sincronizadas com o Firestore.</p>
+            <p className="text-[#8F9BB3]">Informações detalhadas sincronizadas.</p>
           </div>
         </div>
 
@@ -268,13 +311,14 @@ export default function Obra() {
             <>
               <button 
                 onClick={() => setIsEditing(true)}
-                className="px-5 py-2.5 bg-[#111535] border border-[#2A2F55] hover:border-[#FFCA18] text-[#FFCA18] rounded-xl font-bold flex items-center gap-2 transition-colors"
+                className="px-5 py-2.5 bg-[#111535] border border-[#2A2F55] hover:border-[#FFCA18] text-[#FFCA18] rounded-xl font-bold flex items-center gap-2 transition-colors cursor-pointer"
               >
                 <Edit size={18} /> Editar Obra
               </button>
               <button 
                 onClick={handleDeleteObra}
-                className="px-5 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl font-bold flex items-center gap-2 transition-colors"
+                className="px-5 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl font-bold flex items-center gap-2 transition-colors cursor-pointer"
+                title="Excluir obra"
               >
                 <Trash2 size={18} /> Excluir
               </button>
@@ -282,7 +326,7 @@ export default function Obra() {
           ) : (
             <button 
               onClick={() => setIsEditing(false)}
-              className="px-5 py-2.5 bg-[#111535] border border-[#2A2F55] text-[#8F9BB3] hover:text-white rounded-xl font-bold flex items-center gap-2 transition-colors"
+              className="px-5 py-2.5 bg-[#111535] border border-[#2A2F55] text-[#8F9BB3] hover:text-white rounded-xl font-bold flex items-center gap-2 transition-colors cursor-pointer"
             >
               <X size={18} /> Cancelar Edição
             </button>
@@ -290,7 +334,6 @@ export default function Obra() {
         </div>
       </div>
 
-      {/* Modo de Edição ou Visualização */}
       {isEditing ? (
         <form onSubmit={handleSaveEdit} className="space-y-6">
           <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 shadow-xl">
@@ -340,10 +383,9 @@ export default function Obra() {
                   name="status" 
                   value={editFormData.status} 
                   onChange={handleEditChange} 
-                  className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none"
+                  className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-white focus:border-[#FFCA18] outline-none cursor-pointer"
                 >
-                  <option value="Em Andamento">Em Andamento</option>
-                  <option value="Planeamento">Planeamento</option>
+                  <option value="Em andamento">Em andamento</option>
                   <option value="Concluída">Concluída</option>
                   <option value="Suspensa">Suspensa</option>
                 </select>
@@ -362,7 +404,32 @@ export default function Obra() {
             </div>
           </div>
 
-          {/* Seção de Edição de Materiais vinculados ao Estoque */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#111535] border border-[#2A2F55] p-5 rounded-2xl shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="bg-[#FFCA18]/10 p-2.5 rounded-xl text-[#FFCA18]"><DollarSign size={20} /></div>
+              <div>
+                <p className="text-[11px] text-[#8F9BB3] font-bold uppercase">Orçamento Total</p>
+                <p className="text-base font-bold text-white">R$ {orcamentoEdicaoNum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="bg-red-500/10 p-2.5 rounded-xl text-red-400"><DollarSign size={20} /></div>
+              <div>
+                <p className="text-[11px] text-[#8F9BB3] font-bold uppercase">Valor Gasto (Materiais)</p>
+                <p className="text-base font-bold text-red-400">R$ {totalGastoEdicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl ${saldoRestanteEdicao >= 0 ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}><DollarSign size={20} /></div>
+              <div>
+                <p className="text-[11px] text-[#8F9BB3] font-bold uppercase">Saldo Restante</p>
+                <p className={`text-base font-bold ${saldoRestanteEdicao >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  R$ {saldoRestanteEdicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 shadow-xl">
             <div className="flex justify-between items-center border-b border-[#2A2F55] pb-3 mb-5">
               <h2 className="text-lg font-bold text-[#FFCA18] flex items-center gap-2">
@@ -371,7 +438,7 @@ export default function Obra() {
               <button 
                 type="button" 
                 onClick={handleAddMaterial}
-                className="px-4 py-2 bg-[#FFCA18] hover:bg-[#e6b616] text-[#0B0E26] rounded-xl font-bold text-sm flex items-center gap-1 transition-colors"
+                className="px-4 py-2 bg-[#FFCA18] hover:bg-[#e6b616] text-[#0B0E26] rounded-xl font-bold text-sm flex items-center gap-1 transition-colors cursor-pointer"
               >
                 <Plus size={16} /> Adicionar Material do Estoque
               </button>
@@ -382,30 +449,29 @@ export default function Obra() {
                 {editFormData.materiais_utilizados.map((mat, index) => (
                   <div key={index} className="bg-[#1B1F3B] border border-[#2A2F55] rounded-xl p-4 flex flex-col md:flex-row gap-4 items-end">
                     
-                    {/* Selecionar item direto do Estoque */}
                     <div className="flex-1 w-full">
                       <label className="text-xs text-[#8F9BB3] mb-1 block">Selecionar do Estoque Geral</label>
                       <select
                         value={mat.estoqueId || ''}
                         onChange={(e) => handleSelectEstoqueItem(index, e.target.value)}
-                        className="w-full bg-[#0B0E26] border border-[#2A2F55] rounded-lg px-3 py-2 text-sm text-white focus:border-[#FFCA18] outline-none"
+                        className="w-full bg-[#0B0E26] border border-[#2A2F55] rounded-lg px-3 py-2 text-sm text-white focus:border-[#FFCA18] outline-none cursor-pointer"
                       >
                         <option value="">Selecione um material...</option>
                         {estoqueGeral.map((itemEstoque) => (
                           <option key={itemEstoque.id} value={itemEstoque.id}>
-                            {itemEstoque.nome} (Disp: {itemEstoque.quantidade} | R$ {Number(itemEstoque.valorUnitario || 0).toFixed(2)})
+                            {itemEstoque.nome} — [Fornecedor: {itemEstoque.fornecedor || 'Não informado'}] — [Disp: {itemEstoque.quantidade}]
                           </option>
                         ))}
                       </select>
                     </div>
 
                     <div className="flex-1 w-full">
-                      <label className="text-xs text-[#8F9BB3] mb-1 block">Fornecedor</label>
+                      <label className="text-xs text-[#8F9BB3] mb-1 block">Fornecedor Separado</label>
                       <input 
                         type="text" 
                         value={mat.fornecedor || ''} 
                         readOnly
-                        className="w-full bg-[#0B0E26] border border-[#2A2F55] rounded-lg px-3 py-2 text-sm text-[#8F9BB3] outline-none cursor-not-allowed" 
+                        className="w-full bg-[#0B0E26] border border-[#2A2F55] rounded-lg px-3 py-2 text-sm text-[#FFCA18] font-semibold outline-none cursor-not-allowed" 
                       />
                     </div>
 
@@ -442,7 +508,7 @@ export default function Obra() {
                     <button 
                       type="button" 
                       onClick={() => handleRemoveMaterial(index)}
-                      className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg transition-colors"
+                      className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg transition-colors cursor-pointer"
                       title="Remover material"
                     >
                       <Trash2 size={18} />
@@ -459,7 +525,7 @@ export default function Obra() {
             <button 
               type="submit" 
               disabled={isSubmitting}
-              className="px-8 py-3 bg-[#FFCA18] hover:bg-[#e6b616] text-[#0B0E26] rounded-xl font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
+              className="px-8 py-3 bg-[#FFCA18] hover:bg-[#e6b616] text-[#0B0E26] rounded-xl font-bold flex items-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
             >
               <Save size={18} /> {isSubmitting ? 'A salvar...' : 'Salvar Alterações'}
             </button>
@@ -467,8 +533,7 @@ export default function Obra() {
         </form>
       ) : (
         <>
-          {/* Cards de Resumo */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             
             <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 shadow-xl">
               <div className="flex items-center gap-3 mb-3">
@@ -488,39 +553,55 @@ export default function Obra() {
                 <span className="text-xs text-[#8F9BB3] font-bold uppercase tracking-wider">Orçamento Total</span>
               </div>
               <p className="text-lg font-bold text-white">
-                {obra.orcamentoTotal ? `R$ ${Number(obra.orcamentoTotal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'Não informado'}
+                R$ {orcamentoTotalNum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </p>
             </div>
 
             <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 shadow-xl">
               <div className="flex items-center gap-3 mb-3">
-                <div className="bg-blue-500/10 p-2 rounded-lg text-blue-400">
-                  <CheckCircle size={20} />
+                <div className="bg-red-500/10 p-2 rounded-lg text-red-400">
+                  <DollarSign size={20} />
                 </div>
-                <span className="text-xs text-[#8F9BB3] font-bold uppercase tracking-wider">Status Atual</span>
+                <span className="text-xs text-[#8F9BB3] font-bold uppercase tracking-wider">Valor Gasto (Materiais)</span>
               </div>
-              <p className="text-lg font-bold text-white">{obra.status || 'Em Andamento'}</p>
+              <p className="text-lg font-bold text-red-400">
+                R$ {totalGastoMateriais.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+
+            <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 shadow-xl">
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`p-2 rounded-lg ${saldoRestanteObra >= 0 ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                  <DollarSign size={20} />
+                </div>
+                <span className="text-xs text-[#8F9BB3] font-bold uppercase tracking-wider">Saldo Restante</span>
+              </div>
+              <p className={`text-lg font-bold ${saldoRestanteObra >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                R$ {saldoRestanteObra.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
             </div>
 
           </div>
 
-          {/* Detalhes de Data */}
-          <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 shadow-xl mb-8">
-            <h2 className="text-lg font-bold border-b border-[#2A2F55] pb-3 mb-5 text-[#FFCA18] flex items-center gap-2">
-              <Building2 size={20} /> Informações do Projeto
-            </h2>
+          <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 shadow-xl mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="flex items-center gap-3 text-sm">
               <Calendar size={18} className="text-[#8F9BB3]" />
               <span className="text-[#8F9BB3] font-semibold">Data de Início:</span>
               <span className="text-white font-medium">{obra.data || 'Não informada'}</span>
             </div>
+            <div className="flex items-center gap-3 text-sm">
+              <CheckCircle size={18} className="text-blue-400" />
+              <span className="text-[#8F9BB3] font-semibold">Status Atual:</span>
+              <span className="text-white font-medium bg-[#1B1F3B] px-3 py-1 rounded-lg border border-[#2A2F55]">
+                {obra.status || 'Em andamento'}
+              </span>
+            </div>
           </div>
 
-          {/* Tabela de Materiais Utilizados */}
           <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl shadow-xl overflow-hidden mb-8">
             <div className="p-6 border-b border-[#2A2F55] flex items-center gap-3">
               <Package className="text-[#FFCA18]" size={24} />
-              <h2 className="text-lg font-bold text-white">Materiais Utilizados nesta Obra (Integrados ao Estoque)</h2>
+              <h2 className="text-lg font-bold text-white">Materiais Utilizados nesta Obra (Fornecedor e Quantidade em colunas separadas)</h2>
             </div>
 
             <ResponsiveTable

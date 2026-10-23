@@ -15,6 +15,7 @@ import Empresas from './pages/Empresas';
 import Categorias from './pages/Categorias';
 import NovaObra from './pages/NovaObra';
 import Obra from './pages/Obra';
+import Fornecedores from './pages/Fornecedores';
 
 export default function App() {
   return (
@@ -35,6 +36,7 @@ export default function App() {
               <Route path="categorias" element={<Categorias />} />
               <Route path="nova-obra" element={<NovaObra />} />
               <Route path="obra/:id?" element={<Obra />} />
+              <Route path="fornecedores" element={<Fornecedores />} />
             </Route>
           </Routes>
         </Router>

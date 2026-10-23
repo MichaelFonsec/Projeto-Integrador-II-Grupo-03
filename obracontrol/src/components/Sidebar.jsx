@@ -60,7 +60,7 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
 
   return (
     <>
-      {/* Fundo escuro ao abrir menu no celular */}
+      {/* Fundo escuro ao abrir menu no telemóvel */}
       {isOpen && (
         <div 
           onClick={onClose} 

@@ -263,9 +263,9 @@ export default function Relatorios() {
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-6 sm:mb-8">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-wide flex items-center gap-2">
-            <FileText size={26} className="text-[#FFCA18]" /> RELATÓRIOS & ANÁLISES
+            <FileText size={26} className="text-[#FFCA18]" /> RELATÓRIOS
           </h1>
-          <p className="text-xs sm:text-sm text-[#8F9BB3] mt-1">Indicadores financeiros, controlo de stock e fechamento de obras</p>
+          <p className="text-xs sm:text-sm text-[#8F9BB3] mt-1">Indicadores financeiros, controlo de estoque e fechamento de obras</p>
         </div>
         
         <div className="flex flex-wrap gap-2.5 sm:gap-3 items-center w-full xl:w-auto">

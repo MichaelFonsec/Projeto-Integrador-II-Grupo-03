@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { Building2, Search, Plus, Trash2 } from 'lucide-react';
+import { Building2, Search, Plus, Trash2, Loader2 } from 'lucide-react';
 import ResponsiveTable from '../components/ResponsiveTable';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Empresas() {
+  const { currentUser, userData } = useAuth();
   const [empresas, setEmpresas] = useState([]);
   const [cnpj, setCnpj] = useState('');
   const [razaoSocial, setRazaoSocial] = useState('');
@@ -13,35 +15,17 @@ export default function Empresas() {
   const [loadingAction, setLoadingAction] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const fetchEmpresas = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'empresas'));
-      setEmpresas(querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch (error) {
-      console.error("Erro ao carregar empresas:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Sincronização em tempo real com o Firestore
   useEffect(() => {
-    let ativo = true;
-    const carregar = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, 'empresas'));
-        if (ativo) {
-          setEmpresas(querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-        }
-      } catch (error) {
-        console.error("Erro ao carregar empresas:", error);
-      } finally {
-        if (ativo) setLoading(false);
-      }
-    };
-    carregar();
-    return () => {
-      ativo = false;
-    };
+    const unsubscribe = onSnapshot(collection(db, 'empresas'), (snapshot) => {
+      const lista = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setEmpresas(lista);
+      setLoading(false);
+    }, (error) => {
+      console.error("Erro ao carregar empresas:", error);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   const formatarCnpj = (valor) => {
@@ -55,13 +39,19 @@ export default function Empresas() {
   };
 
   const handleCnpjChange = (e) => {
-    setCnpj(formatarCnpj(e.target.value));
+    const valorFormatado = formatarCnpj(e.target.value);
+    setCnpj(valorFormatado);
+    
+    const limpo = valorFormatado.replace(/\D/g, '');
+    if (limpo.length === 14) {
+      buscarCnpjAutomatico(limpo);
+    } else {
+      // Limpa a razão social automaticamente se o CNPJ for apagado ou estiver incompleto
+      setRazaoSocial('');
+    }
   };
 
-  const buscarCnpj = async () => {
-    const cnpjLimpo = cnpj.replace(/\D/g, '');
-    if (cnpjLimpo.length !== 14) return;
-    
+  const buscarCnpjAutomatico = async (cnpjLimpo) => {
     setLoadingCnpj(true);
     try {
       const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`);
@@ -70,9 +60,11 @@ export default function Empresas() {
         setRazaoSocial(data.razao_social || data.nome_fantasia || '');
       } else {
         alert("CNPJ não encontrado na base de dados.");
+        setRazaoSocial('');
       }
     } catch (error) {
-      console.error("Erro na busca da BrasilAPI:", error);
+      console.error("Erro na busca:", error);
+      setRazaoSocial('');
     } finally {
       setLoadingCnpj(false);
     }
@@ -80,12 +72,26 @@ export default function Empresas() {
 
   const handleAddEmpresa = async (e) => {
     e.preventDefault();
+    if (!cnpj || !razaoSocial) return;
+
     setLoadingAction(true);
     try {
-      await addDoc(collection(db, 'empresas'), { cnpj, razaoSocial });
+      await addDoc(collection(db, 'empresas'), { 
+        cnpj, 
+        razaoSocial,
+        createdAt: serverTimestamp() 
+      });
+
+      await addDoc(collection(db, 'movimentacoes'), {
+        tipo: 'ENTRADA',
+        modulo: 'Fornecedores',
+        descricao: `Cadastrou o fornecedor: ${razaoSocial}`,
+        usuario: userData?.usuario || currentUser?.email || 'Utilizador',
+        data: serverTimestamp()
+      });
+
       setCnpj('');
       setRazaoSocial('');
-      await fetchEmpresas();
     } catch (error) {
       console.error("Erro ao adicionar empresa:", error);
     } finally {
@@ -93,13 +99,24 @@ export default function Empresas() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Remover este fornecedor?")) {
-      await deleteDoc(doc(db, 'empresas', id));
-      fetchEmpresas();
+  const handleDelete = async (id, nome) => {
+    if (window.confirm(`Tem certeza que deseja excluir o fornecedor "${nome}"?`)) {
+      try {
+        await deleteDoc(doc(db, 'empresas', id));
+        await addDoc(collection(db, 'movimentacoes'), {
+          tipo: 'EXCLUSAO',
+          modulo: 'Fornecedores',
+          descricao: `Removeu o fornecedor: ${nome}`,
+          usuario: userData?.usuario || currentUser?.email || 'Utilizador',
+          data: serverTimestamp()
+        });
+      } catch (error) {
+        console.error("Erro ao remover fornecedor:", error);
+      }
     }
   };
 
+  // Filtragem flexível por Nome ou CNPJ
   const empresasFiltradas = empresas.filter(emp => {
     const nome = (emp.razaoSocial || '').toLowerCase();
     const docNum = (emp.cnpj || '').replace(/\D/g, '');
@@ -118,7 +135,7 @@ export default function Empresas() {
       render: (emp) => (
         <div className="flex items-center gap-3 min-w-0">
           <div className="bg-[#1B1F3B] p-2 rounded-lg border border-[#2A2F55] shrink-0">
-            <Building2 size={16} className="text-[#8F9BB3]" />
+            <Building2 size={16} className="text-[#FFCA18]" />
           </div>
           <span className="min-w-0 break-words">{emp.razaoSocial}</span>
         </div>
@@ -128,22 +145,22 @@ export default function Empresas() {
       key: 'cnpj',
       header: 'CNPJ',
       textClassName: 'text-[#8F9BB3] font-mono',
-      render: (emp) => formatarCnpj(emp.cnpj) || '-'
+      render: (emp) => emp.cnpj || '-'
     }
   ];
 
   const acoesEmpresas = (emp) => [
-    { label: 'Remover', icon: Trash2, variant: 'danger', iconOnly: true, onClick: () => handleDelete(emp.id) }
+    { label: 'Remover', icon: Trash2, variant: 'danger', iconOnly: true, onClick: () => handleDelete(emp.id, emp.razaoSocial) }
   ];
 
   return (
-    <div className="flex-1 bg-[#0B0E26] p-4 sm:p-6 md:p-8 text-white transition-colors duration-200 min-w-0">
+    <div className="flex-1 bg-[#0B0E26] p-4 sm:p-6 md:p-8 text-white transition-colors duration-200 min-w-0 overflow-y-auto">
       
       {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 sm:mb-8 gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">Fornecedores & Empresas</h1>
-          <p className="text-sm sm:text-base text-[#8F9BB3]">Cadastre e gerencie fornecedores e parceiros comerciais.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">Fornecedores</h1>
+          <p className="text-sm sm:text-base text-[#8F9BB3]">Cadastre via CNPJ (consulta automática) ou pesquise pelo nome.</p>
         </div>
 
         <div className="flex flex-wrap gap-3 sm:gap-4 w-full md:w-auto">
@@ -168,11 +185,11 @@ export default function Empresas() {
 
         <form onSubmit={handleAddEmpresa} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch md:items-end">
           <div className="md:col-span-4">
-            <label className="text-xs sm:text-sm font-bold text-[#8F9BB3] mb-2 block">
-              CNPJ
+            <label className="text-xs sm:text-sm font-bold text-[#8F9BB3] mb-2 block flex items-center justify-between">
+              <span>CNPJ (Preenchimento Automático)</span>
               {loadingCnpj && (
-                <span className="text-[#FFCA18] ml-2 inline-flex items-center gap-1 text-xs font-normal">
-                  <Search size={12} className="animate-spin" /> Buscando dados...
+                <span className="text-[#FFCA18] flex items-center gap-1 text-xs font-normal">
+                  <Loader2 size={12} className="animate-spin" /> Buscando...
                 </span>
               )}
             </label>
@@ -181,7 +198,6 @@ export default function Empresas() {
               className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-sm text-white focus:border-[#FFCA18] outline-none transition-colors" 
               value={cnpj} 
               onChange={handleCnpjChange} 
-              onBlur={buscarCnpj}
               maxLength="18"
               placeholder="00.000.000/0000-00"
               required 
@@ -189,13 +205,13 @@ export default function Empresas() {
           </div>
 
           <div className="md:col-span-5">
-            <label className="text-xs sm:text-sm font-bold text-[#8F9BB3] mb-2 block">Razão Social</label>
+            <label className="text-xs sm:text-sm font-bold text-[#8F9BB3] mb-2 block">Razão Social / Nome da Empresa</label>
             <input 
               type="text"
               className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl px-4 py-3 text-sm text-white focus:border-[#FFCA18] outline-none transition-colors" 
               value={razaoSocial} 
               onChange={e => setRazaoSocial(e.target.value)} 
-              placeholder="Razão Social ou Nome Fantasia" 
+              placeholder="Preenchido automaticamente via CNPJ" 
               required 
             />
           </div>
@@ -212,7 +228,7 @@ export default function Empresas() {
         </form>
       </div>
 
-      {/* Lista de Fornecedores */}
+      {/* Lista e Pesquisa de Fornecedores */}
       <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl shadow-xl overflow-hidden">
         <div className="p-4 sm:p-6 border-b border-[#2A2F55] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex items-center gap-3">
@@ -223,7 +239,7 @@ export default function Empresas() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4A5578]" size={18} />
             <input 
               type="text" 
-              placeholder="Buscar fornecedor ou CNPJ..." 
+              placeholder="Pesquisar por nome ou CNPJ..." 
               value={termoBusca} 
               onChange={(e) => setTermoBusca(e.target.value)} 
               className="w-full bg-[#1B1F3B] border border-[#2A2F55] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-[#FFCA18] outline-none transition-colors" 

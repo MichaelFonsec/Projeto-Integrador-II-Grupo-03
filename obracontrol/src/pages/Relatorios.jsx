@@ -113,9 +113,12 @@ export default function Relatorios() {
     };
   }, []);
 
+  // Obras filtradas conforme o dropdown
   const obrasFiltradas = obraSelecionada === 'TODAS' 
     ? obras 
     : obras.filter(o => o.id === obraSelecionada || o.nome === obraSelecionada);
+
+  const obraSelecionadaObj = obras.find(o => o.id === obraSelecionada);
 
   const totalOrcado = obrasFiltradas.reduce((acc, o) => acc + (Number(o.orcamentoTotal) || Number(o.orcamento) || 0), 0);
   
@@ -130,120 +133,177 @@ export default function Relatorios() {
   const valorTotalEstoque = estoque.reduce((acc, e) => acc + (Number(e.valorTotal) || (Number(e.quantidade || 0) * Number(e.valorUnitario || 0))), 0);
   const totalItensEstoque = estoque.reduce((acc, e) => acc + (Number(e.quantidade) || 0), 0);
 
-  const totalEntradas = movimentacoes.filter(m => m.tipo === 'ENTRADA').length;
-  const totalSaidas = movimentacoes.filter(m => m.tipo === 'SAIDA' || m.tipo === 'EDICAO' || m.modulo === 'Obras').length;
+  // --- FILTRAGEM DINÂMICA DE MOVIMENTAÇÕES CONFORME A ESCOLHA DA OBRA ---
+  const movimentacoesFiltradasGrafico = obraSelecionada === 'TODAS'
+    ? movimentacoes
+    : movimentacoes.filter(m => {
+        const desc = (m.descricao || '').toLowerCase();
+        const nomeObraMatch = obraSelecionadaObj && obraSelecionadaObj.nome ? desc.includes(obraSelecionadaObj.nome.toLowerCase()) : false;
+        const moduloMatch = m.modulo === 'Obras' || m.modulo?.includes('Estoque -> Obra');
+        return nomeObraMatch || moduloMatch;
+      });
 
-  // Cálculo proporcional dinâmico para as barras do gráfico
+  const totalEntradas = obraSelecionada === 'TODAS' 
+    ? movimentacoes.filter(m => m.tipo === 'ENTRADA').length
+    : movimentacoesFiltradasGrafico.filter(m => m.tipo === 'ENTRADA' || m.tipo === 'CRIACAO').length;
+
+  const totalSaidas = obraSelecionada === 'TODAS'
+    ? movimentacoes.filter(m => m.tipo === 'SAIDA' || m.tipo === 'EDICAO' || m.modulo === 'Obras').length
+    : movimentacoesFiltradasGrafico.filter(m => m.tipo === 'SAIDA' || m.tipo === 'EDICAO' || m.tipo === 'EXCLUSAO' || m.modulo === 'Obras').length;
+
+  // Cálculo proporcional para as barras do gráfico
   const maxMov = Math.max(totalEntradas, totalSaidas, 1);
   const alturaEntradasPct = Math.max(30, (totalEntradas / maxMov) * 100);
   const alturaSaidasPct = Math.max(30, (totalSaidas / maxMov) * 100);
 
+  // --- EXPORTAR EXCEL MELHORADO ---
   const exportarExcel = () => {
     const wb = XLSX.utils.book_new();
 
+    // Aba 1: Resumo Executivo
     const resumoData = [
-      ["Relatório Executivo de Obras e Estoque"],
-      ["Data de Emissão:", new Date().toLocaleDateString('pt-PT')],
+      ["RELATÓRIO EXECUTIVO - GESTÃO DE OBRAS E ESTOQUE"],
+      ["Filtro Aplicado:", obraSelecionada === 'TODAS' ? "Todas as Obras" : (obraSelecionadaObj?.nome || 'Obra Específica')],
+      ["Data de Emissão:", new Date().toLocaleDateString('pt-BR')],
       [""],
-      ["Métrica", "Valor"],
-      ["Total de Obras Mapeadas", obrasFiltradas.length],
-      ["Orçamento Total Previsto", totalOrcado],
-      ["Total Gasto em Materiais", totalGastoObras],
-      ["Saldo Restante / Retornado", totalOrcado - totalGastoObras],
-      ["Total de Itens no Estoque", totalItensEstoque],
-      ["Valor Imobilizado no Estoque", valorTotalEstoque]
+      ["Métrica Financeira / Operacional", "Valor"],
+      ["Total de Obras Selecionadas", obrasFiltradas.length],
+      ["Orçamento Total Previsto (R$)", totalOrcado],
+      ["Total Gasto em Materiais (R$)", totalGastoObras],
+      ["Saldo Restante / Diferença (R$)", totalOrcado - totalGastoObras],
+      ["Total de Itens no Estoque Geral", totalItensEstoque],
+      ["Valor Imobilizado no Estoque (R$)", valorTotalEstoque]
     ];
     const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);
+    wsResumo['!cols'] = [{ wch: 35 }, { wch: 20 }];
     XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo Executivo");
 
+    // Aba 2: Obras e Materiais Detalhados
     const obrasData = [];
     obrasFiltradas.forEach(o => {
       if (o.materiais_utilizados && o.materiais_utilizados.length > 0) {
         o.materiais_utilizados.forEach(m => {
           obrasData.push({
-            "Obra": o.nome || 'N/D',
+            "Nome da Obra": o.nome || 'N/D',
             "Status": o.status || 'Em Andamento',
-            "Local": o.local || 'N/D',
-            "Material": m.nome || 'N/D',
-            "Fornecedor": m.fornecedor || 'N/D',
-            "Quantidade": m.quantidade || 0,
+            "Localização": o.local || 'N/D',
+            "Material Utilizado": m.nome || 'N/D',
+            "Fornecedor": m.fornecedor || 'Não informado',
+            "Quantidade Alocada": m.quantidade || 0,
             "Valor Unitário (R$)": m.valorUnitario || 0,
-            "Valor Total (R$)": m.valorTotal || 0
+            "Valor Total do Material (R$)": m.valorTotal || 0
           });
         });
       } else {
         obrasData.push({
-          "Obra": o.nome || 'N/D',
+          "Nome da Obra": o.nome || 'N/D',
           "Status": o.status || 'Em Andamento',
-          "Local": o.local || 'N/D',
-          "Material": "Nenhum material registado",
+          "Localização": o.local || 'N/D',
+          "Material Utilizado": "Nenhum material registado",
           "Fornecedor": "-",
-          "Quantidade": 0,
+          "Quantidade Alocada": 0,
           "Valor Unitário (R$)": 0,
-          "Valor Total (R$)": 0
+          "Valor Total do Material (R$)": 0
         });
       }
     });
     const wsObras = XLSX.utils.json_to_sheet(obrasData);
+    wsObras['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 25 }, { wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 22 }];
     XLSX.utils.book_append_sheet(wb, wsObras, "Obras e Materiais");
 
+    // Aba 3: Estoque Geral
     const estoqueData = estoque.map(e => ({
-      "Material": e.nome || 'N/D',
-      "Fornecedor": e.fornecedor || 'N/D',
+      "Nome do Material": e.nome || 'N/D',
+      "Fornecedor": e.fornecedor || 'Não informado',
       "Quantidade em Estoque": e.quantidade || 0,
       "Valor Unitário (R$)": e.valorUnitario || 0,
-      "Valor Total (R$)": e.valorTotal || (Number(e.quantidade || 0) * Number(e.valorUnitario || 0))
+      "Valor Total em Estoque (R$)": e.valorTotal || (Number(e.quantidade || 0) * Number(e.valorUnitario || 0))
     }));
     const wsEstoque = XLSX.utils.json_to_sheet(estoqueData);
+    wsEstoque['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 18 }, { wch: 22 }];
     XLSX.utils.book_append_sheet(wb, wsEstoque, "Estoque Geral");
 
-    XLSX.writeFile(wb, `Relatorio_Obras_Estoque_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `Relatorio_Completo_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  // --- EXPORTAR PDF MELHORADO COM GRÁFICO E TABELAS ---
   const exportarPDF = () => {
     const doc = new jsPDF();
+    const nomeFiltro = obraSelecionada === 'TODAS' ? 'Todas as Obras' : (obraSelecionadaObj?.nome || 'Obra Específica');
 
-    doc.setFontSize(18);
+    // Cabeçalho do PDF
+    doc.setFontSize(20);
     doc.setTextColor(11, 14, 38);
-    doc.text("Relatório Geral de Obras e Estoque", 14, 20);
+    doc.text("Relatório Executivo de Obras e Estoque", 14, 18);
 
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
-    doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-PT')} às ${new Date().toLocaleTimeString('pt-PT')}`, 14, 27);
+    doc.text(`Filtro: ${nomeFiltro} | Emitido em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 14, 25);
 
+    // Tabela de Resumo Consolidado
     autoTable(doc, {
-      startY: 35,
-      head: [['Métrica Consolidada', 'Valor']],
+      startY: 32,
+      head: [['Indicador / Métrica Consolidada', 'Valor']],
       body: [
-        ['Total de Obras', obrasFiltradas.length],
+        ['Obras Analisadas', obrasFiltradas.length],
         ['Orçamento Total Previsto', `R$ ${totalOrcado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
         ['Total Gasto em Materiais', `R$ ${totalGastoObras.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
-        ['Saldo Estimado', `R$ ${(totalOrcado - totalGastoObras).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
-        ['Valor Imobilizado (Estoque)', `R$ ${valorTotalEstoque.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`]
+        ['Saldo Estimado / Diferença', `R$ ${(totalOrcado - totalGastoObras).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
+        ['Valor Imobilizado (Estoque)', `R$ ${valorTotalEstoque.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
+        ['Movimentações Registradas (Entradas / Saídas)', `${totalEntradas} entradas | ${totalSaidas} saídas`]
       ],
       theme: 'grid',
-      headStyles: { fillColor: [17, 21, 53] }
+      headStyles: { fillColor: [17, 21, 53], textColor: [255, 202, 24] }
     });
 
+    // Tabela de Obras Detalhadas
     const bodyObras = [];
     obrasFiltradas.forEach(o => {
       const gasto = o.materiais_utilizados ? o.materiais_utilizados.reduce((acc, m) => acc + (Number(m.valorTotal) || 0), 0) : 0;
+      const orc = Number(o.orcamentoTotal || o.orcamento || 0);
       bodyObras.push([
         o.nome || 'N/D',
         o.status || 'Em Andamento',
         o.local || 'N/D',
-        `R$ ${Number(o.orcamentoTotal || o.orcamento || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-        `R$ ${gasto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        `R$ ${orc.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        `R$ ${gasto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        `R$ ${(orc - gasto).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]);
     });
 
     autoTable(doc, {
-      startY: doc.lastAutoTable.finalY + 15,
-      head: [['Nome da Obra', 'Status', 'Local', 'Orçamento', 'Gasto Total']],
+      startY: doc.lastAutoTable.finalY + 12,
+      head: [['Nome da Obra', 'Status', 'Localização', 'Orçamento', 'Gasto Real', 'Saldo']],
       body: bodyObras,
       theme: 'grid',
       headStyles: { fillColor: [255, 202, 24], textColor: [11, 14, 38] }
     });
+
+    // Tabela de Materiais Utilizados nas Obras Selecionadas
+    const bodyMateriais = [];
+    obrasFiltradas.forEach(o => {
+      if (o.materiais_utilizados && o.materiais_utilizados.length > 0) {
+        o.materiais_utilizados.forEach(m => {
+          bodyMateriais.push([
+            o.nome,
+            m.nome || 'N/D',
+            m.fornecedor || 'Não informado',
+            m.quantidade || 0,
+            `R$ ${Number(m.valorTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+          ]);
+        });
+      }
+    });
+
+    if (bodyMateriais.length > 0) {
+      autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 12,
+        head: [['Obra', 'Material', 'Fornecedor', 'Qtd', 'Valor Total']],
+        body: bodyMateriais,
+        theme: 'grid',
+        headStyles: { fillColor: [43, 139, 246], textColor: [255, 255, 255] }
+      });
+    }
 
     doc.save(`Relatorio_Obras_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
@@ -270,14 +330,14 @@ export default function Relatorios() {
         
         <div className="flex flex-wrap gap-2.5 sm:gap-3 items-center w-full xl:w-auto">
           {/* Select de Filtro por Obra */}
-          <div className="relative flex-1 sm:flex-initial min-w-[180px]">
+          <div className="relative flex-1 sm:flex-initial min-w-[200px]">
             <Filter className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8F9BB3]" size={16} />
             <select 
               value={obraSelecionada} 
               onChange={(e) => setObraSelecionada(e.target.value)}
               className="w-full pl-10 pr-6 py-2.5 bg-[#111535] border border-[#2A2F55] rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:border-[#FFCA18] appearance-none shadow-lg cursor-pointer transition-colors"
             >
-              <option value="TODAS">Todas as Obras</option>
+              <option value="TODAS">Todas as Obras (Geral)</option>
               {obras.map(o => (
                 <option key={o.id} value={o.id}>{o.nome}</option>
               ))}
@@ -343,18 +403,22 @@ export default function Relatorios() {
         </div>
       </div>
 
-      {/* ÁREA DOS GRÁFICOS */}
+      {/* ÁREA DOS GRÁFICOS (DINÂMICOS POR OBRA SELECIONADA) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         
-        {/* Gráfico 1: Movimentações (Design Aprimorado) */}
+        {/* Gráfico 1: Movimentações Dinâmico */}
         <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 shadow-xl flex flex-col">
-          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-5 flex items-center gap-2">
-            <BarChart3 size={18} className="text-[#2B8BF6]" /> Gráfico Entradas vs Saídas (Movimentações)
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-5 flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <BarChart3 size={18} className="text-[#2B8BF6]" /> Gráfico Entradas vs Saídas
+            </span>
+            <span className="text-[10px] bg-[#1B1F3B] px-2.5 py-1 rounded-lg border border-[#2A2F55] text-[#FFCA18]">
+              {obraSelecionada === 'TODAS' ? 'Visão Global' : `Filtro: ${obraSelecionadaObj?.nome || 'Obra'}`}
+            </span>
           </h3>
           <div className="bg-[#1B1F3B] border border-[#2A2F55] rounded-xl flex-1 min-h-[280px] p-6 flex flex-col justify-end">
             <div className="flex justify-around items-end h-48 gap-16 border-b border-[#2A2F55] pb-3 relative">
               
-              {/* Barra de Entradas */}
               <div className="flex flex-col items-center gap-2.5 flex-1 max-w-[140px] h-full justify-end">
                 <span className="text-xs font-extrabold text-green-400 bg-green-500/10 px-3 py-1 rounded-lg border border-green-500/30 shadow">
                   {totalEntradas}
@@ -366,7 +430,6 @@ export default function Relatorios() {
                 <span className="text-xs font-bold text-[#8F9BB3] text-center mt-1">Entradas</span>
               </div>
 
-              {/* Barra de Saídas */}
               <div className="flex flex-col items-center gap-2.5 flex-1 max-w-[140px] h-full justify-end">
                 <span className="text-xs font-extrabold text-red-400 bg-red-500/10 px-3 py-1 rounded-lg border border-red-500/30 shadow">
                   {totalSaidas}
@@ -379,14 +442,19 @@ export default function Relatorios() {
               </div>
 
             </div>
-            <p className="text-center mt-4 text-[11px] text-[#8F9BB3]">Atualizado automaticamente em tempo real</p>
+            <p className="text-center mt-4 text-[11px] text-[#8F9BB3]">Atualizado em tempo real conforme a obra selecionada</p>
           </div>
         </div>
 
         {/* Gráfico 2: Orçamento vs Gasto */}
         <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 shadow-xl flex flex-col">
-          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-5 flex items-center gap-2">
-            <PieChart size={18} className="text-[#FFCA18]" /> Gráfico Orçamento Total vs Gasto Real
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-5 flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <PieChart size={18} className="text-[#FFCA18]" /> Orçamento vs Gasto Real
+            </span>
+            <span className="text-[10px] bg-[#1B1F3B] px-2.5 py-1 rounded-lg border border-[#2A2F55] text-[#FFCA18]">
+              {obraSelecionada === 'TODAS' ? 'Visão Global' : `Filtro: ${obraSelecionadaObj?.nome || 'Obra'}`}
+            </span>
           </h3>
           <div className="bg-[#1B1F3B] border border-[#2A2F55] rounded-xl flex-1 min-h-[280px] p-6 flex flex-col justify-center gap-5">
             <div>
@@ -410,7 +478,7 @@ export default function Relatorios() {
             </div>
 
             <div className="pt-3 border-t border-[#2A2F55] flex justify-between text-xs font-bold">
-              <span className="text-[#8F9BB3]">Saldo Restante Global:</span>
+              <span className="text-[#8F9BB3]">Saldo Restante:</span>
               <span className={totalOrcado - totalGastoObras >= 0 ? "text-green-400" : "text-red-400"}>
                 R$ {(totalOrcado - totalGastoObras).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </span>
@@ -422,17 +490,22 @@ export default function Relatorios() {
 
       {/* TABELA DE FECHAMENTO DE OBRAS */}
       <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl shadow-xl overflow-hidden mb-8">
-        <div className="p-4 sm:p-6 border-b border-[#2A2F55] flex items-center gap-3">
-          <FolderArchive size={22} className="text-green-400" />
-          <h2 className="text-base sm:text-lg font-bold text-white">Fechamento e Resumo de Obras</h2>
+        <div className="p-4 sm:p-6 border-b border-[#2A2F55] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <FolderArchive size={22} className="text-green-400" />
+            <h2 className="text-base sm:text-lg font-bold text-white">Fechamento e Resumo de Obras</h2>
+          </div>
+          <span className="text-xs text-[#8F9BB3]">
+            {obrasFiltradas.length} {obrasFiltradas.length === 1 ? 'obra exibida' : 'obras exibidas'}
+          </span>
         </div>
         
         <ResponsiveTable
           columns={colunasObras}
-          data={obras}
+          data={obrasFiltradas}
           actions={acoesObra}
           cardCols={3}
-          emptyMessage="Nenhuma obra registada para fechamento."
+          emptyMessage="Nenhuma obra encontrada com o filtro selecionado."
         />
       </div>
 

@@ -27,7 +27,6 @@ export default function Estoque() {
     valorUnitario: '' 
   });
 
-  // Escuta em tempo real do Estoque e dos Fornecedores
   useEffect(() => {
     const unsubEstoque = onSnapshot(collection(db, 'estoque'), (querySnapshot) => {
       const estoqueArray = [];
@@ -41,7 +40,6 @@ export default function Estoque() {
       setLoading(false);
     });
 
-    // Puxa os fornecedores cadastrados (suporta coleções 'empresas' ou 'fornecedores')
     const unsubEmpresas = onSnapshot(collection(db, 'empresas'), (snapshot) => {
       const lista = [];
       snapshot.forEach(docSnap => {
@@ -187,7 +185,6 @@ export default function Estoque() {
         </div>
       </div>
 
-      {/* Formulário */}
       <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl p-6 shadow-xl mb-8">
         <h2 className="text-lg font-bold border-b border-[#2A2F55] pb-3 mb-5 text-[#FFCA18] flex items-center gap-2">
           <PlusCircle size={20} /> Cadastrar Novo Material no Estoque
@@ -258,7 +255,6 @@ export default function Estoque() {
         </form>
       </div>
 
-      {/* Tabela */}
       <div className="bg-[#111535] border border-[#2A2F55] rounded-2xl shadow-xl overflow-hidden">
         <div className="p-6 border-b border-[#2A2F55] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-3">

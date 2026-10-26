@@ -68,7 +68,7 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
         />
       )}
 
-      <aside className={`w-72 md:w-[260px] bg-[#0B0E26] border-r border-[#2A2F55] flex flex-col h-screen select-none shrink-0 transition-all duration-300 z-50 fixed md:static inset-y-0 left-0 ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`w-72 md:w-[260px] bg-[#0B0E26] border-r border-[#2A2F55] flex flex-col h-[100dvh] select-none shrink-0 transition-all duration-300 z-50 fixed md:static inset-y-0 left-0 ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'}`}>
         {/* Logótipo */}
         <div className="flex items-center justify-between pt-6 pb-8 px-5">
           <div className="flex items-center gap-2.5 min-w-0">
